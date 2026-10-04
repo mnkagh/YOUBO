@@ -11,3 +11,4 @@ python-dotenv
 youtube-transcript-api
 rank-bm25
 yt-dlp
+fpdf2
