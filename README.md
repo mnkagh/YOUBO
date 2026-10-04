@@ -24,8 +24,8 @@ A conversational RAG app that turns YouTube videos into a searchable knowledge b
 ## Setup
 
 ```bash
-git clone https://github.com/mnkagh/YouTube-RAG-Chatbot.git
-cd YouTube-RAG-Chatbot
+git clone https://github.com/mnkagh/youtube-chatbot.git
+cd youtube-chatbot
 python -m venv venv
 venv\Scripts\activate   # Windows
 pip install -r requirements.txt
