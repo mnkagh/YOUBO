@@ -1,0 +1,13 @@
+langchain
+langchain-community
+langchain-groq
+langchain-huggingface
+langchain-text-splitters
+langchain-qdrant
+qdrant-client
+sentence-transformers
+streamlit
+python-dotenv
+youtube-transcript-api
+rank-bm25
+yt-dlp
