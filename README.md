@@ -10,8 +10,14 @@ A conversational RAG app that turns YouTube videos into a searchable knowledge b
 - **Multi-video support** — chat across several videos at once
 - **Comparison mode** — explicitly compare what different videos say about a topic
 - **Playlist support** — paste a playlist URL, it expands to the first 10 videos
-- **Study notes export** — one click turns a video into structured markdown notes, downloadable as `.md`
+- **Summary levels** — TL;DR, Short, or Detailed summaries
+- **Quiz generator** — auto-creates multiple-choice quizzes from a video with answers + explanations
+- **Study notes export** — structured markdown notes, downloadable as `.md` or `.pdf`
+- **Key moments timeline** — evenly-spaced timestamped highlights with links
+- **Video metadata** — titles, channels, durations shown in the sidebar
 - **Chat export** — download the full conversation as markdown
+- **Cached index** — the vector/BM25 index is built once per video set, not on every rerun
+- **Input hardening** — length limits, playlist caps, transcript size caps, graceful errors
 
 ## Tech Stack
 
