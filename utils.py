@@ -61,6 +61,35 @@ def ollama_status(model: str = "llama3.2") -> dict:
         return {"running": False, "has_model": False, "models": []}
 
 
+def resolve_provider() -> tuple:
+    """Host-side config, invisible to end users.
+
+    Priority: LLM_PROVIDER env (+ its key env) -> working Ollama -> Pollinations fallback.
+    Returns (provider_name, model, api_key).
+    """
+    configured = os.getenv("LLM_PROVIDER", "Ollama (local, unlimited, no key)")
+    if configured not in PROVIDERS:
+        configured = "Ollama (local, unlimited, no key)"
+    model = os.getenv("LLM_MODEL", "") or PROVIDERS[configured]["model"]
+
+    if not configured.startswith("Ollama"):
+        key = os.getenv(PROVIDERS[configured]["env"], "")
+        if key:
+            return configured, model, key
+        # Configured provider has no key -> fall through to keyless options.
+
+    status = ollama_status(model if configured.startswith("Ollama") else PROVIDERS["Ollama (local, unlimited, no key)"]["model"])
+    if status["running"] and status["has_model"]:
+        name = "Ollama (local, unlimited, no key)"
+        return name, PROVIDERS[name]["model"], ""
+
+    return (
+        "Pollinations (anonymous, rate-limited)",
+        PROVIDERS["Pollinations (anonymous, rate-limited)"]["model"],
+        "",
+    )
+
+
 def get_llm(provider: str, api_key: str, model: str | None = None):
     """Build a chat model for the chosen provider. Every option above works on a free tier."""
     if PROVIDERS[provider]["needs_key"] and not api_key:

@@ -29,7 +29,14 @@ A conversational RAG app that turns YouTube videos into a searchable knowledge b
 
 ## LLM Providers (all free)
 
-Pick one in the sidebar at runtime — no code change needed:
+Pick one in `.env` at runtime — no code change needed, and visitors never see it:
+
+```bash
+LLM_PROVIDER=Ollama (local, unlimited, no key)  # default, keyless
+# LLM_PROVIDER=Groq (free tier: 30 rpm / 1k day)  # + GROQ_API_KEY
+```
+
+Resolution order: configured provider with key → working Ollama → anonymous Pollinations fallback.
 
 | Provider | Model default | Free allowance | Key |
 |----------|---------------|----------------|-----|
