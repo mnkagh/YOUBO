@@ -1,4 +1,5 @@
 """Core logic for the YouTube RAG chatbot: loading, retrieval, generation helpers."""
+import os
 import re
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -28,6 +29,18 @@ PROVIDER_LINKS = {
 }
 
 
+def ollama_status(model: str = "llama3.2") -> dict:
+    """Ping the local Ollama server. Host-only concern; end users never see this."""
+    import requests
+    base = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    try:
+        r = requests.get(f"{base}/api/tags", timeout=2)
+        models = [m.get("name", "") for m in r.json().get("models", [])]
+        return {"running": True, "has_model": any(model in m for m in models), "models": models}
+    except Exception:
+        return {"running": False, "has_model": False, "models": []}
+
+
 def get_llm(provider: str, api_key: str, model: str | None = None):
     """Build a chat model for the chosen provider. Every option above works on a free tier."""
     if not provider.startswith("Ollama") and not api_key:
@@ -36,7 +49,10 @@ def get_llm(provider: str, api_key: str, model: str | None = None):
 
     if provider.startswith("Ollama"):
         from langchain_ollama import ChatOllama
-        return ChatOllama(model=model, temperature=0.2)
+        return ChatOllama(
+            model=model, temperature=0.2,
+            base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+        )
 
     if provider.startswith("Groq"):
         from langchain_groq import ChatGroq

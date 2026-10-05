@@ -46,6 +46,21 @@ To go fully local:
 ollama pull llama3.2
 ```
 
+## Keyless for end users
+
+Only the **host** machine ever needs Ollama or a key — visitors just open a URL:
+
+1. **Local (Ollama default):** install Ollama once on the host, run `ollama pull llama3.2`, select the Ollama provider. No visitor ever enters a key.
+2. **Server key:** set `GROQ_API_KEY` (or Gemini/OpenRouter) once in `.env` on the host. The app detects it and hides the key field from visitors.
+3. **Docker (host it anywhere):**
+
+```bash
+docker compose up --build -d
+docker compose exec ollama ollama pull llama3.2
+```
+
+Then share `http://<host>:8501` — fully keyless for everyone.
+
 ## Setup
 
 ```bash

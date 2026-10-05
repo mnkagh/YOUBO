@@ -22,19 +22,36 @@ st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
 
 with st.sidebar:
     st.header("LLM Provider")
-    provider = st.selectbox("Provider (all free)", list(utils.PROVIDERS))
+    provider = st.selectbox("Provider (all free)", list(utils.PROVIDERS), index=0)
     default_model = utils.PROVIDERS[provider]["model"]
     model = st.text_input("Model", value=default_model)
     if utils.PROVIDERS[provider]["needs_key"]:
         env_name = utils.PROVIDERS[provider]["env"]
-        api_key = st.text_input(f"{env_name}", type="password", value=os.getenv(env_name, ""))
-        st.caption(f"Get a free key: {utils.PROVIDER_LINKS[provider]}")
+        server_key = os.getenv(env_name, "")
+        if server_key:
+            # Host-provided key: end users never see or enter anything.
+            api_key = server_key
+            st.caption("Server key in use — nothing for you to enter.")
+        else:
+            api_key = st.text_input(f"{env_name}", type="password", value="")
+            st.caption(f"Host tip: set {env_name} in .env so visitors never see this. Free key: {utils.PROVIDER_LINKS[provider]}")
     else:
         api_key = ""
-        st.caption("Runs fully on your machine — no key, no usage limits.")
+        status = utils.ollama_status(model)
+        if status["running"] and status["has_model"]:
+            st.success("Local AI ready — no key, no limits.")
+        elif status["running"]:
+            st.warning(f"Ollama is running but model '{model}' is missing. Host: run `ollama pull {model}`")
+        else:
+            st.info("Host tip: install Ollama for keyless use — https://ollama.com/download")
 
 try:
     llm = utils.get_llm(provider, api_key, model)
+    if provider.startswith("Ollama"):
+        status = utils.ollama_status(model)
+        if not status["running"] or not status["has_model"]:
+            st.warning("Local AI isn't ready yet — pick a cloud provider above or (host) start Ollama.")
+            st.stop()
 except Exception as e:
     st.warning(str(e) or f"Could not initialize {provider}. See setup notes in the README.")
     st.stop()

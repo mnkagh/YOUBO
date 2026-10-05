@@ -1,0 +1,20 @@
+# One-command keyless hosting: Ollama + app. Visitors only need the URL.
+services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      - ollama
+
+volumes:
+  ollama:
