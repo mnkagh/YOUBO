@@ -1,18 +1,77 @@
 """Core logic for the YouTube RAG chatbot: loading, retrieval, generation helpers."""
+import logging
 import os
 import re
+import time
+from pathlib import Path
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.retrievers import BaseRetriever
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from rank_bm25 import BM25Okapi
 
 MAX_VIDEOS = 20
 MAX_TRANSCRIPT_CHARS = 200_000
+
+LOG_DIR = Path(__file__).parent / "logs"
+
+
+def get_logger(name: str = "ytchat") -> logging.Logger:
+    LOG_DIR.mkdir(exist_ok=True)
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        handler = logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    return logger
+
+
+log = get_logger()
+
+
+def log_error(action: str, exc: Exception) -> None:
+    log.exception(f"{action} failed: {exc}")
+
+
+def read_recent_logs(n: int = 40) -> str:
+    try:
+        lines = (LOG_DIR / "app.log").read_text(encoding="utf-8").splitlines()
+        return "\n".join(lines[-n:]) or "(no log entries yet)"
+    except FileNotFoundError:
+        return "(no log entries yet)"
+
+
+class Timer:
+    def __init__(self, action: str):
+        self.action = action
+
+    def __enter__(self):
+        self.t0 = time.time()
+        return self
+
+    def __exit__(self, *args):
+        log.info(f"{self.action} took {time.time() - self.t0:.1f}s")
+
+
+_EMBEDDING = None
+
+
+def get_embeddings():
+    """Process-level singleton: the model loads once, not on every rerun.
+
+    FastEmbed (ONNX) instead of sentence-transformers (torch): loads in
+    seconds on CPU instead of ~40s, no GPU/torch needed.
+    """
+    global _EMBEDDING
+    if _EMBEDDING is None:
+        with Timer("embedding model load"):
+            from langchain_community.embeddings import FastEmbedEmbeddings
+            _EMBEDDING = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+    return _EMBEDDING
 
 PROVIDERS = {
     "Ollama (local, unlimited, no key)": {"model": "llama3.2", "env": "", "needs_key": False},
@@ -278,7 +337,7 @@ def _make_chunk(video_id: str, text: str, start: float) -> Document:
 
 def build_hybrid_retriever(video_ids: list, docs: list):
     """Vector (Qdrant) + BM25 hybrid retrieval resources."""
-    embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedding = get_embeddings()
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     splits = []
     for d in docs:

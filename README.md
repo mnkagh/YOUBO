@@ -18,11 +18,12 @@ A conversational RAG app that turns YouTube videos into a searchable knowledge b
 - **Chat export** — download the full conversation as markdown
 - **Cached index** — the vector/BM25 index is built once per video set, not on every rerun
 - **Input hardening** — length limits, playlist caps, transcript size caps, graceful errors
+- **Server logging** — every failure is logged with timings to `logs/app.log`, viewable in the sidebar Diagnostics panel
 
 ## Tech Stack
 
 - **LLM:** your choice of free provider (see below)
-- **Embeddings:** Hugging Face `all-MiniLM-L6-v2`
+- **Embeddings:** FastEmbed `bge-small-en-v1.5` (ONNX — loads in <1s on CPU, no torch)
 - **Vector store:** Qdrant (in-memory)
 - **Keyword search:** BM25 (`rank-bm25`)
 - **Framework:** LangChain + Streamlit

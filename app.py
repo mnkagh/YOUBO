@@ -54,6 +54,11 @@ with st.sidebar:
     load_btn = st.button("Load videos")
     compare_mode = st.checkbox("Multi-video comparison mode", value=False)
 
+    with st.expander("Diagnostics (server log)"):
+        st.caption(f"Backend: {provider} / {model}")
+        st.caption(f"Index: {len(st.session_state.video_ids)} video(s), {len(st.session_state.video_docs)} chunks")
+        st.code(utils.read_recent_logs(40), language="text")
+
     if st.session_state.video_meta:
         st.subheader("Loaded")
         for vid in st.session_state.video_ids:
@@ -82,13 +87,28 @@ if load_btn and raw_urls:
         st.error("No valid video IDs found.")
     else:
         all_docs, meta = [], {}
-        with st.spinner("Fetching transcripts..."):
+        with st.status("Loading videos...", expanded=True) as status:
+            st.write("Fetching transcripts...")
             for vid in video_ids:
                 try:
-                    all_docs.extend(utils.transcript_to_docs(vid, utils.fetch_transcript(vid)))
+                    with utils.Timer(f"transcript {vid}"):
+                        all_docs.extend(utils.transcript_to_docs(vid, utils.fetch_transcript(vid)))
                     meta[vid] = utils.get_video_metadata(vid)
                 except Exception as e:
+                    utils.log_error(f"transcript {vid}", e)
                     st.warning(f"Skipping {vid}: {e}")
+            if all_docs:
+                st.write("Building search index (first run downloads the embedding model)...")
+                try:
+                    with utils.Timer(f"index {len(video_ids)} video(s)"):
+                        st.session_state.retriever_resources = utils.build_hybrid_retriever(video_ids, all_docs)
+                    st.session_state.retriever_cache_key = tuple(video_ids)
+                    status.update(label="Videos loaded.", state="complete")
+                except Exception as e:
+                    utils.log_error("index build", e)
+                    status.update(label="Index build failed — see Diagnostics.", state="error")
+                    st.error(f"Could not build the search index: {e}")
+                    all_docs = []
         if not all_docs:
             st.error("No transcripts available. Videos may lack captions.")
         else:
@@ -101,10 +121,17 @@ if st.session_state.video_docs:
     docs = st.session_state.video_docs
     cache_key = tuple(st.session_state.video_ids)
     if st.session_state.get("retriever_cache_key") != cache_key:
-        st.session_state.retriever_resources = utils.build_hybrid_retriever(
-            st.session_state.video_ids, docs
-        )
-        st.session_state.retriever_cache_key = cache_key
+        # Fallback path (normally built during Load with progress UI).
+        try:
+            with st.spinner("Building search index..."):
+                st.session_state.retriever_resources = utils.build_hybrid_retriever(
+                    st.session_state.video_ids, docs
+                )
+            st.session_state.retriever_cache_key = cache_key
+        except Exception as e:
+            utils.log_error("index build", e)
+            st.error(f"Could not build the search index: {e}")
+            st.stop()
     vectorstore, splits, bm25 = st.session_state.retriever_resources
     base_retriever = utils.HybridRetriever(vectorstore=vectorstore, splits=splits, bm25=bm25, k=4)
     retriever = utils.LinkAttachingRetriever(base=base_retriever)
@@ -167,7 +194,8 @@ if st.session_state.video_docs:
                         with st.chat_message("assistant"):
                             st.markdown(response["answer"])
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        utils.log_error("chat answer", e)
+                        st.error("Sorry, that answer failed. The error was logged — see Diagnostics in the sidebar.")
                 st.rerun()
 
     with tab_summary:
@@ -178,7 +206,8 @@ if st.session_state.video_docs:
                 try:
                     st.session_state.summary = utils.build_summary(llm, full_text, level)
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    utils.log_error("summary", e)
+                    st.error("Summary failed. The error was logged — see Diagnostics in the sidebar.")
         if st.session_state.get("summary"):
             st.markdown(st.session_state.summary)
             st.download_button("Download summary (.md)", st.session_state.summary,
@@ -192,7 +221,8 @@ if st.session_state.video_docs:
                 try:
                     st.session_state.quiz = utils.build_quiz(llm, full_text, n=n_q)
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    utils.log_error("quiz", e)
+                    st.error("Quiz generation failed. The error was logged — see Diagnostics in the sidebar.")
         if st.session_state.quiz:
             st.markdown(st.session_state.quiz)
             st.download_button("Download quiz (.md)", st.session_state.quiz,
@@ -205,7 +235,8 @@ if st.session_state.video_docs:
                 try:
                     st.session_state.notes = utils.build_notes(llm, full_text)
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    utils.log_error("notes", e)
+                    st.error("Notes generation failed. The error was logged — see Diagnostics in the sidebar.")
         if st.session_state.notes:
             st.markdown(st.session_state.notes)
             c1, c2 = st.columns(2)

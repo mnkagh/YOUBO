@@ -3,11 +3,10 @@ langchain-community
 langchain-groq
 langchain-ollama
 langchain-google-genai
-langchain-huggingface
 langchain-text-splitters
 langchain-qdrant
 qdrant-client
-sentence-transformers
+fastembed
 streamlit
 python-dotenv
 youtube-transcript-api

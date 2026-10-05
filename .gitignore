@@ -6,6 +6,9 @@ env/
 # Environment variables
 .env
 
+# Server logs
+logs/
+
 # Python
 __pycache__/
 *.py[cod]
