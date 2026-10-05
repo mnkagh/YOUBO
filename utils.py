@@ -213,14 +213,28 @@ class OpenAICompatibleChat(BaseChatModel):
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        resp = requests.post(
-            f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=120,
-        )
-        if resp.status_code != 200:
-            raise RuntimeError(f"LLM error {resp.status_code}: {resp.text[:300]}")
-        return ChatResult(
-            generations=[ChatGeneration(message=AIMessage(content=resp.json()["choices"][0]["message"]["content"]))]
-        )
+        last_error = None
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=120,
+                )
+            except Exception as e:
+                last_error = f"connection failed (attempt {attempt + 1}/3): {e}"
+                log.warning(last_error)
+                time.sleep(2 ** attempt)
+                continue
+            if resp.status_code == 200:
+                return ChatResult(
+                    generations=[ChatGeneration(message=AIMessage(content=resp.json()["choices"][0]["message"]["content"]))]
+                )
+            last_error = f"LLM error {resp.status_code}: {resp.text[:300]}"
+            if resp.status_code in (429, 500, 502, 503) and attempt < 2:
+                log.warning(f"{last_error} — retrying")
+                time.sleep(2 ** attempt)
+                continue
+            raise RuntimeError(last_error)
+        raise RuntimeError(last_error)
 
 
 class HuggingFaceChat(BaseChatModel):
