@@ -34,8 +34,11 @@ Pick one in the sidebar at runtime — no code change needed:
 | Provider | Model default | Free allowance | Key |
 |----------|---------------|----------------|-----|
 | **Ollama** (local) | `llama3.2` | Unlimited, fully offline | None |
+| **Pollinations** | `openai` | Anonymous, no signup — but rate-limited, best as fallback | None |
+| **LM Studio / llama.cpp** (local server) | `local-model` | Unlimited, runs your own GGUF models | None |
 | **Groq** | `gpt-oss-120b` | 30 req/min, 1000/day, 200k tokens/day | [console.groq.com/keys](https://console.groq.com/keys) |
 | **Google Gemini** | `gemini-3-flash-preview` | Free Flash models, per-project caps | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| **Hugging Face** | `Llama-3.1-8B-Instruct` | Free tier with free account | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
 | **OpenRouter** | `openai/gpt-oss-120b:free` | Free models, ~50 req/day | [openrouter.ai/keys](https://openrouter.ai/keys) |
 
 **For the long term:** Ollama is the most sustainable — no key, no quota, no data leaving your machine, no vendor deprecating your model. Groq's free tier is the best documented cloud option (published limits, no card). Free tiers change often: Groq replaced its Llama free models with `gpt-oss`, and Cerebras/GitHub Models/Together dropped free tiers in 2026 — hence the provider is configurable rather than hardcoded.

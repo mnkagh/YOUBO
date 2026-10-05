@@ -16,16 +16,36 @@ MAX_TRANSCRIPT_CHARS = 200_000
 
 PROVIDERS = {
     "Ollama (local, unlimited, no key)": {"model": "llama3.2", "env": "", "needs_key": False},
+    "Pollinations (anonymous, rate-limited)": {
+        "model": "openai", "env": "", "needs_key": False,
+        "base_url": "https://text.pollinations.ai/openai",
+    },
+    "LM Studio (local server, no key)": {
+        "model": "local-model", "env": "", "needs_key": False,
+        "base_url": "http://localhost:1234/v1",
+    },
+    "llama.cpp (local server, no key)": {
+        "model": "default", "env": "", "needs_key": False,
+        "base_url": "http://localhost:8080/v1",
+    },
+    "Hugging Face (free tier)": {"model": "meta-llama/Llama-3.1-8B-Instruct", "env": "HF_TOKEN", "needs_key": True},
     "Groq (free tier: 30 rpm / 1k day)": {"model": "gpt-oss-120b", "env": "GROQ_API_KEY", "needs_key": True},
     "Google Gemini (free Flash models)": {"model": "gemini-3-flash-preview", "env": "GEMINI_API_KEY", "needs_key": True},
-    "OpenRouter (free models, 50/day)": {"model": "openai/gpt-oss-120b:free", "env": "OPENROUTER_API_KEY", "needs_key": True},
+    "OpenRouter (free models, 50/day)": {
+        "model": "openai/gpt-oss-120b:free", "env": "OPENROUTER_API_KEY", "needs_key": True,
+        "base_url": "https://openrouter.ai/api/v1",
+    },
 }
 
 PROVIDER_LINKS = {
     "Groq (free tier: 30 rpm / 1k day)": "https://console.groq.com/keys",
     "Google Gemini (free Flash models)": "https://aistudio.google.com/app/apikey",
     "OpenRouter (free models, 50/day)": "https://openrouter.ai/keys",
+    "Hugging Face (free tier)": "https://huggingface.co/settings/tokens",
     "Ollama (local, unlimited, no key)": "https://ollama.com/download",
+    "LM Studio (local server, no key)": "https://lmstudio.ai",
+    "llama.cpp (local server, no key)": "https://github.com/ggerganov/llama.cpp",
+    "Pollinations (anonymous, rate-limited)": "https://pollinations.ai",
 }
 
 
@@ -43,7 +63,7 @@ def ollama_status(model: str = "llama3.2") -> dict:
 
 def get_llm(provider: str, api_key: str, model: str | None = None):
     """Build a chat model for the chosen provider. Every option above works on a free tier."""
-    if not provider.startswith("Ollama") and not api_key:
+    if PROVIDERS[provider]["needs_key"] and not api_key:
         raise ValueError(f"{provider} needs an API key. Get a free one at {PROVIDER_LINKS[provider]}")
     model = model or PROVIDERS[provider]["model"]
 
@@ -62,50 +82,90 @@ def get_llm(provider: str, api_key: str, model: str | None = None):
         from langchain_google_genai import ChatGoogleGenerativeAI
         return ChatGoogleGenerativeAI(model=model, google_api_key=api_key, temperature=0.2)
 
-    if provider.startswith("OpenRouter"):
-        return OpenRouterChat(model=model, api_key=api_key, temperature=0.2)
+    if provider.startswith("Hugging Face"):
+        return HuggingFaceChat(model=model, api_key=api_key, temperature=0.2)
+
+    if "base_url" in PROVIDERS[provider]:
+        return OpenAICompatibleChat(
+            model=model, api_key=api_key, temperature=0.2,
+            base_url=PROVIDERS[provider]["base_url"],
+        )
 
     raise ValueError(f"Unsupported provider: {provider}")
 
 
-class OpenRouterChat(BaseChatModel):
-    """Minimal OpenRouter client (requests only, no tiktoken dependency)."""
+class OpenAICompatibleChat(BaseChatModel):
+    """Any OpenAI-compatible endpoint (OpenRouter, Pollinations, LM Studio,
+    llama.cpp, vLLM). Plain requests, no extra dependencies."""
 
     model: str
-    api_key: str
+    api_key: str = ""
     temperature: float = 0.2
-    base_url: str = "https://openrouter.ai/api/v1"
+    base_url: str = ""
 
     @property
     def _llm_type(self) -> str:
-        return "openrouter"
+        return "openai-compatible"
+
+    def _to_openai_role(self, m) -> str:
+        return {"human": "user", "ai": "assistant"}.get(m.type, m.type)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         import requests
         payload = {
             "model": self.model,
             "messages": [
-                {"role": m.type, "content": m.content if isinstance(m.content, str) else str(m.content)}
+                {"role": self._to_openai_role(m), "content": m.content if isinstance(m.content, str) else str(m.content)}
                 for m in messages
             ],
             "temperature": self.temperature,
         }
         if stop:
             payload["stop"] = stop
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         resp = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=120,
+            f"{self.base_url}/chat/completions", headers=headers, json=payload, timeout=120,
         )
         if resp.status_code != 200:
-            raise RuntimeError(f"OpenRouter error {resp.status_code}: {resp.text[:300]}")
+            raise RuntimeError(f"LLM error {resp.status_code}: {resp.text[:300]}")
         return ChatResult(
             generations=[ChatGeneration(message=AIMessage(content=resp.json()["choices"][0]["message"]["content"]))]
         )
+
+
+class HuggingFaceChat(BaseChatModel):
+    """Hugging Face Inference API (free tier with a free account token)."""
+
+    model: str
+    api_key: str
+    temperature: float = 0.2
+
+    @property
+    def _llm_type(self) -> str:
+        return "huggingface"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        from huggingface_hub import InferenceClient
+        from langchain_core.messages import SystemMessage
+        client = InferenceClient(token=self.api_key)
+        out = client.chat.completions.create(
+            model=self.model,
+            messages=[
+                ({"role": "system" if isinstance(m, SystemMessage) else m.type, "content": str(m.content)})
+                for m in messages
+            ],
+            temperature=self.temperature,
+            max_tokens=1024,
+        )
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content=out.choices[0].message.content))]
+        )
+
+
+# Backwards-compat alias (was OpenRouter-only before generalization).
+OpenRouterChat = OpenAICompatibleChat
 
 
 def extract_video_id(text: str) -> str | None:
