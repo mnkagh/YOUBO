@@ -9,7 +9,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_groq import ChatGroq
 
 import utils
 
@@ -17,24 +16,30 @@ load_dotenv()
 if os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
-
 st.set_page_config(page_title="YouTube RAG Chatbot", page_icon=":tv:", layout="wide")
 st.title("Chat with YouTube Videos")
 st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
 
-api_key = st.text_input("Groq API key", type="password", value=os.getenv("GROQ_API_KEY", ""))
-session_id = st.text_input("Session ID", value="default_session")
-
-if not api_key:
-    st.warning("Enter your Groq API key. Get one free at https://console.groq.com")
-    st.stop()
+with st.sidebar:
+    st.header("LLM Provider")
+    provider = st.selectbox("Provider (all free)", list(utils.PROVIDERS))
+    default_model = utils.PROVIDERS[provider]["model"]
+    model = st.text_input("Model", value=default_model)
+    if utils.PROVIDERS[provider]["needs_key"]:
+        env_name = utils.PROVIDERS[provider]["env"]
+        api_key = st.text_input(f"{env_name}", type="password", value=os.getenv(env_name, ""))
+        st.caption(f"Get a free key: {utils.PROVIDER_LINKS[provider]}")
+    else:
+        api_key = ""
+        st.caption("Runs fully on your machine — no key, no usage limits.")
 
 try:
-    llm = ChatGroq(groq_api_key=api_key, model_name=GROQ_MODEL)
+    llm = utils.get_llm(provider, api_key, model)
 except Exception as e:
-    st.error(f"Could not initialize LLM: {e}")
+    st.warning(str(e) or f"Could not initialize {provider}. See setup notes in the README.")
     st.stop()
+
+session_id = st.text_input("Session ID", value="default_session")
 
 for key, default in [("store", {}), ("video_docs", []), ("video_ids", []), ("video_meta", {}), ("notes", None), ("quiz", None)]:
     if key not in st.session_state:

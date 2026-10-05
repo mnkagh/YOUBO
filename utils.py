@@ -1,6 +1,9 @@
 """Core logic for the YouTube RAG chatbot: loading, retrieval, generation helpers."""
 import re
 from langchain_core.documents import Document
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.retrievers import BaseRetriever
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
@@ -9,6 +12,84 @@ from rank_bm25 import BM25Okapi
 
 MAX_VIDEOS = 20
 MAX_TRANSCRIPT_CHARS = 200_000
+
+PROVIDERS = {
+    "Ollama (local, unlimited, no key)": {"model": "llama3.2", "env": "", "needs_key": False},
+    "Groq (free tier: 30 rpm / 1k day)": {"model": "gpt-oss-120b", "env": "GROQ_API_KEY", "needs_key": True},
+    "Google Gemini (free Flash models)": {"model": "gemini-3-flash-preview", "env": "GEMINI_API_KEY", "needs_key": True},
+    "OpenRouter (free models, 50/day)": {"model": "openai/gpt-oss-120b:free", "env": "OPENROUTER_API_KEY", "needs_key": True},
+}
+
+PROVIDER_LINKS = {
+    "Groq (free tier: 30 rpm / 1k day)": "https://console.groq.com/keys",
+    "Google Gemini (free Flash models)": "https://aistudio.google.com/app/apikey",
+    "OpenRouter (free models, 50/day)": "https://openrouter.ai/keys",
+    "Ollama (local, unlimited, no key)": "https://ollama.com/download",
+}
+
+
+def get_llm(provider: str, api_key: str, model: str | None = None):
+    """Build a chat model for the chosen provider. Every option above works on a free tier."""
+    if not provider.startswith("Ollama") and not api_key:
+        raise ValueError(f"{provider} needs an API key. Get a free one at {PROVIDER_LINKS[provider]}")
+    model = model or PROVIDERS[provider]["model"]
+
+    if provider.startswith("Ollama"):
+        from langchain_ollama import ChatOllama
+        return ChatOllama(model=model, temperature=0.2)
+
+    if provider.startswith("Groq"):
+        from langchain_groq import ChatGroq
+        return ChatGroq(groq_api_key=api_key, model_name=model, temperature=0.2)
+
+    if provider.startswith("Google Gemini"):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(model=model, google_api_key=api_key, temperature=0.2)
+
+    if provider.startswith("OpenRouter"):
+        return OpenRouterChat(model=model, api_key=api_key, temperature=0.2)
+
+    raise ValueError(f"Unsupported provider: {provider}")
+
+
+class OpenRouterChat(BaseChatModel):
+    """Minimal OpenRouter client (requests only, no tiktoken dependency)."""
+
+    model: str
+    api_key: str
+    temperature: float = 0.2
+    base_url: str = "https://openrouter.ai/api/v1"
+
+    @property
+    def _llm_type(self) -> str:
+        return "openrouter"
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        import requests
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": m.type, "content": m.content if isinstance(m.content, str) else str(m.content)}
+                for m in messages
+            ],
+            "temperature": self.temperature,
+        }
+        if stop:
+            payload["stop"] = stop
+        resp = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=120,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"OpenRouter error {resp.status_code}: {resp.text[:300]}")
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content=resp.json()["choices"][0]["message"]["content"]))]
+        )
 
 
 def extract_video_id(text: str) -> str | None:

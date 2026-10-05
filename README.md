@@ -21,11 +21,30 @@ A conversational RAG app that turns YouTube videos into a searchable knowledge b
 
 ## Tech Stack
 
-- **LLM:** Groq (`llama-3.3-70b-versatile`)
+- **LLM:** your choice of free provider (see below)
 - **Embeddings:** Hugging Face `all-MiniLM-L6-v2`
 - **Vector store:** Qdrant (in-memory)
 - **Keyword search:** BM25 (`rank-bm25`)
 - **Framework:** LangChain + Streamlit
+
+## LLM Providers (all free)
+
+Pick one in the sidebar at runtime — no code change needed:
+
+| Provider | Model default | Free allowance | Key |
+|----------|---------------|----------------|-----|
+| **Ollama** (local) | `llama3.2` | Unlimited, fully offline | None |
+| **Groq** | `gpt-oss-120b` | 30 req/min, 1000/day, 200k tokens/day | [console.groq.com/keys](https://console.groq.com/keys) |
+| **Google Gemini** | `gemini-3-flash-preview` | Free Flash models, per-project caps | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| **OpenRouter** | `openai/gpt-oss-120b:free` | Free models, ~50 req/day | [openrouter.ai/keys](https://openrouter.ai/keys) |
+
+**For the long term:** Ollama is the most sustainable — no key, no quota, no data leaving your machine, no vendor deprecating your model. Groq's free tier is the best documented cloud option (published limits, no card). Free tiers change often: Groq replaced its Llama free models with `gpt-oss`, and Cerebras/GitHub Models/Together dropped free tiers in 2026 — hence the provider is configurable rather than hardcoded.
+
+To go fully local:
+
+```bash
+ollama pull llama3.2
+```
 
 ## Setup
 
