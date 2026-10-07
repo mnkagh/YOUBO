@@ -44,7 +44,7 @@ Resolution order: configured provider with key → working Ollama → anonymous 
 | **Ollama** (local) | `llama3.2` | Unlimited, fully offline | None |
 | **Pollinations** | `openai` | Anonymous, no signup — but rate-limited, best as fallback | None |
 | **LM Studio / llama.cpp** (local server) | `local-model` | Unlimited, runs your own GGUF models | None |
-| **Groq** | `gpt-oss-120b` | 30 req/min, 1000/day, 200k tokens/day | [console.groq.com/keys](https://console.groq.com/keys) |
+| **Groq** | `openai/gpt-oss-120b` | 30 req/min, 1000/day, 200k tokens/day | [console.groq.com/keys](https://console.groq.com/keys) |
 | **Google Gemini** | `gemini-3-flash-preview` | Free Flash models, per-project caps | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
 | **Hugging Face** | `Llama-3.1-8B-Instruct` | Free tier with free account | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
 | **OpenRouter** | `openai/gpt-oss-120b:free` | Free models, ~50 req/day | [openrouter.ai/keys](https://openrouter.ai/keys) |

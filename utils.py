@@ -88,7 +88,7 @@ PROVIDERS = {
         "base_url": "http://localhost:8080/v1",
     },
     "Hugging Face (free tier)": {"model": "meta-llama/Llama-3.1-8B-Instruct", "env": "HF_TOKEN", "needs_key": True},
-    "Groq (free tier: 30 rpm / 1k day)": {"model": "gpt-oss-120b", "env": "GROQ_API_KEY", "needs_key": True},
+    "Groq (free tier: 30 rpm / 1k day)": {"model": "openai/gpt-oss-120b", "env": "GROQ_API_KEY", "needs_key": True},
     "Google Gemini (free Flash models)": {"model": "gemini-3-flash-preview", "env": "GEMINI_API_KEY", "needs_key": True},
     "OpenRouter (free models, 50/day)": {
         "model": "openai/gpt-oss-120b:free", "env": "OPENROUTER_API_KEY", "needs_key": True,
