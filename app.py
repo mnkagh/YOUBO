@@ -45,10 +45,9 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 st.markdown(THEME_CSS, unsafe_allow_html=True)
 # Kill zombie widgets: if the browser serves a cached copy of the page
 # (back-forward cache), force a hard reload so inputs are live again.
-st.components.v1.html(
+st.html(
     "<script>window.addEventListener('pageshow', function (e) { "
     "if (e.persisted) { window.location.reload(); } });</script>",
-    height=0,
 )
 
 if "dark_mode" not in st.session_state:
@@ -86,11 +85,21 @@ st.title("YOUBO — Chat with YouTube Videos")
 st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
 
 
+def state_owner() -> str | None:
+    """Who to save state under: the logged-in user, or the anonymous guest token."""
+    if st.session_state.get("auth_user"):
+        return st.session_state.auth_user
+    sid = st.session_state.get("guest_sid")
+    if st.session_state.get("guest") and sid:
+        return f"_guest_{sid}"
+    return None
+
+
 def persist_user_state() -> None:
-    user = st.session_state.get("auth_user")
-    if not user:
-        return  # guest mode: nothing saved
-    auth.save_state(user, {
+    owner = state_owner()
+    if not owner:
+        return
+    auth.save_state(owner, {
         "dark_mode": st.session_state.get("dark_mode", True),
         "raw_urls": st.session_state.get("raw_urls_box", ""),
         "lang": st.session_state.get("lang_choice", "Auto (any available)"),
@@ -104,9 +113,39 @@ def persist_user_state() -> None:
     })
 
 
+def apply_saved_state(saved: dict) -> None:
+    st.session_state.dark_mode = saved.get("dark_mode", True)
+    st.session_state.chat_names = saved.get("chat_names", {})
+    st.session_state.active_chat = saved.get("active_chat")
+    st.session_state.store = {
+        cid: auth.list_to_history(items) for cid, items in saved.get("chats", {}).items()
+    }
+    st.session_state.raw_urls_box = saved.get("raw_urls", "")
+    st.session_state.lang_choice = saved.get("lang", "Auto (any available)")
+    st.session_state.compare_mode = saved.get("compare", False)
+    st.session_state.restore_videos = saved.get("video_ids", [])
+    st.session_state.video_meta = saved.get("video_meta", {})
+    st.session_state.video_lang = saved.get("video_lang", "")
+    if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
+        new_chat()
+
+
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
     st.session_state.guest = False
+    st.session_state.guest_sid = None
+    auth.prune_old_guests()
+    # Returning guest? The ?s= token in the URL identifies this browser.
+    try:
+        token = st.query_params.get("s", "")
+    except Exception:
+        token = ""
+    if token and auth.guest_state_exists(token):
+        import re as _re
+        if _re.fullmatch(r"[0-9a-f]{16}", token):
+            st.session_state.guest = True
+            st.session_state.guest_sid = token
+            st.session_state.restore_pending = "_guest_" + token
 
 if st.session_state.auth_user is None and not st.session_state.guest:
     t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest"])
@@ -116,7 +155,7 @@ if st.session_state.auth_user is None and not st.session_state.guest:
         if st.button("Login", type="primary"):
             if auth.verify(u, p):
                 st.session_state.auth_user = u.strip().lower()
-                st.session_state.restore_pending = True
+                st.session_state.restore_pending = st.session_state.auth_user
                 st.rerun()
             else:
                 st.error("Wrong username or password.")
@@ -132,30 +171,24 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                 st.success("Account created — you're logged in.")
                 st.rerun()
     with t_guest:
-        st.write("Guest mode: everything works, but chats and inputs vanish on reload.")
+        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
         if st.button("Continue as guest", type="primary"):
+            import secrets as _secrets
             st.session_state.guest = True
+            st.session_state.guest_sid = _secrets.token_hex(8)
+            try:
+                st.query_params["s"] = st.session_state.guest_sid
+            except Exception:
+                pass
             st.rerun()
     st.stop()
 
 if st.session_state.get("restore_pending"):
+    owner = st.session_state.restore_pending
     st.session_state.restore_pending = False
-    saved = auth.load_state(st.session_state.auth_user)
+    saved = auth.load_state(owner) if isinstance(owner, str) and owner else {}
     if saved:
-        st.session_state.dark_mode = saved.get("dark_mode", True)
-        st.session_state.chat_names = saved.get("chat_names", {})
-        st.session_state.active_chat = saved.get("active_chat")
-        st.session_state.store = {
-            cid: auth.list_to_history(items) for cid, items in saved.get("chats", {}).items()
-        }
-        st.session_state.raw_urls_box = saved.get("raw_urls", "")
-        st.session_state.lang_choice = saved.get("lang", "Auto (any available)")
-        st.session_state.compare_mode = saved.get("compare", False)
-        st.session_state.restore_videos = saved.get("video_ids", [])
-        st.session_state.video_meta = saved.get("video_meta", {})
-        st.session_state.video_lang = saved.get("video_lang", "")
-        if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
-            new_chat()
+        apply_saved_state(saved)
     st.rerun()
 
 provider, model, api_key = utils.resolve_provider()
@@ -223,7 +256,7 @@ with st.sidebar:
                 st.session_state.pop(k, None)
             st.rerun()
     else:
-        st.caption("Guest mode — chats vanish on reload. Login to save.")
+        st.caption("Guest mode — auto-saved in this browser, even on refresh.")
     st.header("Videos")
     raw_urls = st.text_area(
         "YouTube URLs / video IDs (one per line). Playlists expand to the first 10 videos.",
