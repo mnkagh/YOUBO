@@ -1,4 +1,4 @@
-"""YouTube RAG Chatbot — Streamlit UI."""
+"""YOUBO — Streamlit UI."""
 import os
 import streamlit as st
 from dotenv import load_dotenv
@@ -16,8 +16,8 @@ load_dotenv()
 if os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
 
-st.set_page_config(page_title="YouTube RAG Chatbot", page_icon=":tv:", layout="wide")
-st.title("Chat with YouTube Videos")
+st.set_page_config(page_title="YOUBO", page_icon=":tv:", layout="wide")
+st.title("YOUBO — Chat with YouTube Videos")
 st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
 
 provider, model, api_key = utils.resolve_provider()

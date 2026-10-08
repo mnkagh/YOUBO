@@ -1,4 +1,4 @@
-"""Core logic for the YouTube RAG chatbot: loading, retrieval, generation helpers."""
+"""Core logic for YOUBO: loading, retrieval, generation helpers."""
 import logging
 import os
 import re

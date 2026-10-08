@@ -1,6 +1,6 @@
-# YouTube RAG Chatbot
+# YOUBO
 
-A conversational RAG app that turns YouTube videos into a searchable knowledge base. Paste a video, playlist, or multiple links and ask questions — answers come with clickable timestamp citations.
+Chat with YouTube videos.
 
 ## Features
 
@@ -75,8 +75,8 @@ Then share `http://<host>:8501` — fully keyless for everyone.
 ## Setup
 
 ```bash
-git clone https://github.com/mnkagh/youtube-chatbot.git
-cd youtube-chatbot
+git clone https://github.com/mnkagh/YOUBO.git
+cd YOUBO
 python -m venv venv
 venv\Scripts\activate   # Windows
 pip install -r requirements.txt
