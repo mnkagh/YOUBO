@@ -43,6 +43,13 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
+# Kill zombie widgets: if the browser serves a cached copy of the page
+# (back-forward cache), force a hard reload so inputs are live again.
+st.components.v1.html(
+    "<script>window.addEventListener('pageshow', function (e) { "
+    "if (e.persisted) { window.location.reload(); } });</script>",
+    height=0,
+)
 
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True  # black by default
