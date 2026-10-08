@@ -1,5 +1,6 @@
 """YOUBO — Streamlit UI."""
 import os
+import uuid
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -33,9 +34,26 @@ except Exception as e:
 
 session_id = st.text_input("Session ID", value="default_session")
 
-for key, default in [("store", {}), ("video_docs", []), ("video_ids", []), ("video_meta", {}), ("notes", None), ("quiz", None)]:
+for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
+                     ("video_docs", []), ("video_ids", []), ("video_meta", {}),
+                     ("video_lang", ""), ("notes", None), ("quiz", None),
+                     ("quiz_data", None), ("quiz_done", False)]:
     if key not in st.session_state:
         st.session_state[key] = default
+
+
+def new_chat(name: str | None = None) -> str:
+    """Create a chat with an auto-generated id. Users never see or type ids."""
+    chat_id = uuid.uuid4().hex[:8]
+    st.session_state.store[chat_id] = ChatMessageHistory()
+    n = len(st.session_state.chat_names) + 1
+    st.session_state.chat_names[chat_id] = name or f"Chat {n}"
+    st.session_state.active_chat = chat_id
+    return chat_id
+
+
+if st.session_state.active_chat is None:
+    new_chat()
 
 
 def get_session_history(session: str) -> BaseChatMessageHistory:
@@ -52,7 +70,37 @@ with st.sidebar:
         placeholder="https://www.youtube.com/watch?v=...",
     )
     load_btn = st.button("Load videos")
+    lang_choice = st.selectbox("Transcript language", list(utils.LANGUAGES), index=0)
     compare_mode = st.checkbox("Multi-video comparison mode", value=False)
+
+    st.subheader("Chats")
+    if st.button("+ New chat"):
+        new_chat()
+        st.rerun()
+    chat_ids = list(st.session_state.chat_names)
+    if chat_ids:
+        current = st.session_state.active_chat
+        picked = st.radio(
+            "Switch chat",
+            chat_ids,
+            index=chat_ids.index(current) if current in chat_ids else 0,
+            format_func=lambda c: f"{st.session_state.chat_names[c]} ({len(st.session_state.store.get(c, ChatMessageHistory()).messages) // 2} Q)",
+            label_visibility="collapsed",
+        )
+        if picked != st.session_state.active_chat:
+            st.session_state.active_chat = picked
+            st.rerun()
+        c1, c2 = st.columns(2)
+        new_name = c1.text_input("Rename", value=st.session_state.chat_names[st.session_state.active_chat])
+        if new_name != st.session_state.chat_names[st.session_state.active_chat]:
+            st.session_state.chat_names[st.session_state.active_chat] = new_name[:60]
+            st.rerun()
+        if c2.button("Delete") and len(chat_ids) > 1:
+            gone = st.session_state.active_chat
+            del st.session_state.store[gone]
+            del st.session_state.chat_names[gone]
+            st.session_state.active_chat = list(st.session_state.chat_names)[0]
+            st.rerun()
 
     with st.expander("Diagnostics (server log)"):
         st.caption(f"Backend: {provider} / {model}")
@@ -86,17 +134,20 @@ if load_btn and raw_urls:
     if not video_ids:
         st.error("No valid video IDs found.")
     else:
-        all_docs, meta = [], {}
+        all_docs, meta, langs = [], {}, []
+        lang_code = utils.LANGUAGES[lang_choice]
         with st.status("Loading videos...", expanded=True) as status:
-            st.write("Fetching transcripts...")
+            st.write(f"Fetching transcripts ({lang_choice})...")
             for vid in video_ids:
                 try:
                     with utils.Timer(f"transcript {vid}"):
-                        all_docs.extend(utils.transcript_to_docs(vid, utils.fetch_transcript(vid)))
+                        snippets, lang_name = utils.fetch_transcript(vid, lang_code)
+                        all_docs.extend(utils.transcript_to_docs(vid, snippets))
+                    langs.append(lang_name)
                     meta[vid] = utils.get_video_metadata(vid)
                 except Exception as e:
                     utils.log_error(f"transcript {vid}", e)
-                    st.warning(f"Skipping {vid}: {e}")
+                    st.warning(f"Skipping {vid}: could not get captions ({e})")
             if all_docs:
                 st.write("Building search index (first run downloads the embedding model)...")
                 try:
@@ -115,7 +166,8 @@ if load_btn and raw_urls:
             st.session_state.video_docs = all_docs
             st.session_state.video_ids = video_ids
             st.session_state.video_meta = meta
-            st.success(f"Loaded {len(video_ids)} video(s), {len(all_docs)} chunks.")
+            st.session_state.video_lang = ", ".join(sorted(set(langs))) or "unknown"
+            st.success(f"Loaded {len(video_ids)} video(s), {len(all_docs)} chunks (captions: {st.session_state.video_lang}).")
 
 if st.session_state.video_docs:
     docs = st.session_state.video_docs
@@ -143,19 +195,35 @@ if st.session_state.video_docs:
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ])
+    video_titles = [st.session_state.video_meta.get(v, {}).get("title", v)
+                    for v in st.session_state.video_ids]
+    content_types = sorted({utils.content_type_of(st.session_state.video_meta.get(v, {}))
+                            for v in st.session_state.video_ids})
+    scope = (
+        f"You know ONLY these loaded video(s): {'; '.join(video_titles)}. "
+        f"Content type(s): {', '.join(content_types)}. "
+        "If asked about videos, playlists, or links NOT in this list, say clearly "
+        "that only the loaded video(s) are available and name them. Never invent "
+        "video counts, links, or playlist contents."
+    )
+    cite_rules = (
+        "Cite every factual claim with the exact [Source](url) markdown link found "
+        "in the retrieved context. Never invent timestamps, never use any other "
+        "citation format (no brackets like 【】, no footnotes)."
+    )
     if compare_mode:
         system_prompt = (
-            "You are an assistant that compares what different videos say. "
-            "Use the retrieved context (each chunk links to its source video/timestamp). "
-            "Compare and contrast the videos' perspectives, citing each claim with the "
-            "matching markdown link. If you don't know, say so.\n\n{context}"
+            "You compare what different videos say. "
+            f"{scope} Compare and contrast perspectives across the loaded videos. "
+            f"{cite_rules} If the answer isn't in the context, say so.\n\n{{context}}"
         )
     else:
         system_prompt = (
-            "You are an assistant for question-answering over YouTube transcripts. "
-            "Answer concisely (max 3 sentences) using the retrieved context. "
-            "Cite sources with the chunk's markdown link so the user can jump to that "
-            "timestamp. If you don't know, say so.\n\n{context}"
+            "You answer questions directly about YouTube video content. "
+            f"{scope} Answer helpfully and concretely from the retrieved context — "
+            "no hedging, no 'as an AI'. "
+            f"{cite_rules} If the answer isn't in the context, say what you do know "
+            "from the videos instead of refusing.\n\n{{context}}"
         )
     qa_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -174,7 +242,7 @@ if st.session_state.video_docs:
     tab_chat, tab_summary, tab_quiz, tab_notes = st.tabs(["Chat", "Summary", "Quiz", "Notes & Export"])
 
     with tab_chat:
-        history = get_session_history(session_id)
+        history = get_session_history(st.session_state.active_chat)
         for i, msg in enumerate(history.messages):
             with st.chat_message("user" if i % 2 == 0 else "assistant"):
                 st.markdown(msg.content)
@@ -189,7 +257,7 @@ if st.session_state.video_docs:
                     try:
                         response = chain.invoke(
                             {"input": user_input},
-                            config={"configurable": {"session_id": session_id}},
+                            config={"configurable": {"session_id": st.session_state.active_chat}},
                         )
                         with st.chat_message("assistant"):
                             st.markdown(response["answer"])
@@ -198,13 +266,15 @@ if st.session_state.video_docs:
                         st.error("Sorry, that answer failed. The error was logged — see Diagnostics in the sidebar.")
                 st.rerun()
 
+    main_type = content_types[0] if content_types else "general"
+
     with tab_summary:
         level = st.radio("Summary length", ["TL;DR", "Short", "Detailed"], horizontal=True)
         if st.button("Generate summary"):
             full_text = "\n".join(d.page_content for d in docs)
             with st.spinner("Summarizing..."):
                 try:
-                    st.session_state.summary = utils.build_summary(llm, full_text, level)
+                    st.session_state.summary = utils.build_summary(llm, full_text, level, main_type)
                 except Exception as e:
                     utils.log_error("summary", e)
                     st.error("Summary failed. The error was logged — see Diagnostics in the sidebar.")
@@ -214,26 +284,43 @@ if st.session_state.video_docs:
                                file_name="summary.md", mime="text/markdown")
 
     with tab_quiz:
+        st.caption(f"Quiz adapts to this content: {main_type}. Answer, then check your score with explanations.")
         n_q = st.slider("Number of questions", 3, 10, 5)
         if st.button("Generate quiz"):
             full_text = "\n".join(d.page_content for d in docs)
             with st.spinner("Creating quiz..."):
                 try:
-                    st.session_state.quiz = utils.build_quiz(llm, full_text, n=n_q)
+                    st.session_state.quiz_data = utils.build_quiz_data(llm, full_text, main_type, n=n_q)
+                    st.session_state.quiz_done = False
                 except Exception as e:
                     utils.log_error("quiz", e)
                     st.error("Quiz generation failed. The error was logged — see Diagnostics in the sidebar.")
-        if st.session_state.quiz:
-            st.markdown(st.session_state.quiz)
-            st.download_button("Download quiz (.md)", st.session_state.quiz,
-                               file_name="quiz.md", mime="text/markdown")
+        if st.session_state.quiz_data:
+            for i, q in enumerate(st.session_state.quiz_data):
+                st.markdown(f"**Q{i + 1}. {q['question']}**")
+                st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
+                if st.session_state.quiz_done:
+                    picked = st.session_state.get(f"quiz_a_{i}")
+                    correct = picked == q["options"][q["answer"]]
+                    st.markdown("Correct!" if correct else f"Wrong — answer: **{q['options'][q['answer']]}**")
+                    st.caption(q["explanation"])
+            c1, c2 = st.columns(2)
+            if c1.button("Check answers"):
+                st.session_state.quiz_done = True
+                st.rerun()
+            if st.session_state.quiz_done:
+                score = sum(
+                    1 for i, q in enumerate(st.session_state.quiz_data)
+                    if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]]
+                )
+                c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
 
     with tab_notes:
         if st.button("Generate study notes"):
             full_text = "\n".join(d.page_content for d in docs)
             with st.spinner("Summarizing..."):
                 try:
-                    st.session_state.notes = utils.build_notes(llm, full_text)
+                    st.session_state.notes = utils.build_notes(llm, full_text, main_type)
                 except Exception as e:
                     utils.log_error("notes", e)
                     st.error("Notes generation failed. The error was logged — see Diagnostics in the sidebar.")
@@ -252,7 +339,7 @@ if st.session_state.video_docs:
         for m in utils.build_key_moments(docs):
             st.markdown(f"[{int(m['start'])}s]({m['link']}) — {m['snippet']}")
 
-        history = get_session_history(session_id)
+        history = get_session_history(st.session_state.active_chat)
         chat_md = "\n\n".join(
             f"**{'You' if i % 2 == 0 else 'Assistant'}:** {m.content}"
             for i, m in enumerate(history.messages)

@@ -280,8 +280,17 @@ def extract_video_id(text: str) -> str | None:
     return None
 
 
+LANGUAGES = {
+    "Auto (any available)": "auto",
+    "English": "en", "Hindi": "hi", "Spanish": "es", "French": "fr",
+    "German": "de", "Portuguese": "pt", "Arabic": "ar", "Russian": "ru",
+    "Tamil": "ta", "Telugu": "te", "Bengali": "bn", "Marathi": "mr",
+    "Japanese": "ja", "Korean": "ko",
+}
+
+
 def is_playlist_url(text: str) -> bool:
-    return "list=" in text and "youtube" in text or text.strip().startswith("https://www.youtube.com/playlist")
+    return "list=" in text
 
 
 def expand_playlist(url: str, limit: int = 10) -> list[str]:
@@ -305,18 +314,45 @@ def get_video_metadata(video_id: str) -> dict:
             "uploader": info.get("uploader", "unknown"),
             "view_count": info.get("view_count"),
             "thumbnail": info.get("thumbnail"),
+            "categories": info.get("categories") or [],
         }
     except Exception:
-        return {"title": video_id, "duration": 0, "uploader": "unknown", "view_count": None, "thumbnail": None}
+        return {"title": video_id, "duration": 0, "uploader": "unknown",
+                "view_count": None, "thumbnail": None, "categories": []}
 
 
-def fetch_transcript(video_id: str) -> list[dict]:
+def content_type_of(meta: dict) -> str:
+    cats = [c.lower() for c in (meta.get("categories") or [])]
+    joined = " ".join(cats)
+    if "music" in joined:
+        return "music"
+    if "gaming" in joined:
+        return "gaming"
+    if any(k in joined for k in ("education", "science", "howto", "news", "documentary", "history")):
+        return "educational"
+    return "general"
+
+def fetch_transcript(video_id: str, language: str = "auto") -> tuple:
+    """Returns (snippets, language_name). Prefers the requested language,
+    falls back to whatever captions exist (manual first, then auto-generated)."""
     from youtube_transcript_api import YouTubeTranscriptApi
-    try:
-        data = YouTubeTranscriptApi().fetch(video_id)
-        return [{"text": s.text, "start": s.start, "duration": s.duration} for s in data]
-    except AttributeError:
-        return YouTubeTranscriptApi.get_transcript(video_id)
+    api = YouTubeTranscriptApi()
+    listing = api.list(video_id)
+    available = list(listing)
+    transcript = None
+    if language != "auto":
+        try:
+            transcript = listing.find_transcript([language])
+        except Exception:
+            transcript = None
+    if transcript is None:
+        manual = [t for t in available if not t.is_generated]
+        transcript = (manual or available or [None])[0]
+    if transcript is None:
+        raise RuntimeError("No captions exist for this video.")
+    data = transcript.fetch()
+    snippets = [{"text": s.text, "start": s.start, "duration": s.duration} for s in data]
+    return snippets, transcript.language
 
 
 def transcript_to_docs(video_id: str, snippets: list[dict]) -> list[Document]:
@@ -402,22 +438,27 @@ class LinkAttachingRetriever(BaseRetriever):
         return out
 
 
-def build_notes(llm, transcript_text: str, max_chars: int = 12000) -> str:
-    prompt = (
-        "Turn the following YouTube video transcript into clean, structured study notes "
-        "in markdown with headings, bullet points, and key takeaways.\n\n"
-        + transcript_text[:max_chars]
-    )
-    return llm.invoke(prompt).content
+def build_notes(llm, transcript_text: str, content_type: str = "general", max_chars: int = 12000) -> str:
+    style = {
+        "music": "Turn this music video transcript/lyrics into fan-style notes: themes, standout lines, and vibe, in markdown.",
+        "gaming": "Turn this gaming video transcript into notes: key plays, strategies, and highlights, in markdown.",
+        "educational": "Turn this transcript into clean, structured study notes in markdown with headings, bullet points, and key takeaways.",
+        "general": "Turn this video transcript into clean, structured notes in markdown with headings, bullet points, and key takeaways.",
+    }[content_type]
+    return llm.invoke(f"{style}\n\n{transcript_text[:max_chars]}").content
 
 
-def build_summary(llm, transcript_text: str, level: str, max_chars: int = 12000) -> str:
+def build_summary(llm, transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:
     instructions = {
         "TL;DR": "Write a TL;DR summary in at most 3 sentences.",
         "Short": "Write a short summary in one paragraph (~5 sentences).",
         "Detailed": "Write a detailed summary with sections: Overview, Main Points, Conclusion.",
     }
-    prompt = f"{instructions.get(level, instructions['Short'])}\n\n{transcript_text[:max_chars]}"
+    hint = {"music": "Focus on theme, mood, and message. ",
+            "gaming": "Focus on what happens and key moments. ",
+            "educational": "Focus on concepts taught. ",
+            "general": ""}[content_type]
+    prompt = f"{hint}{instructions.get(level, instructions['Short'])}\n\n{transcript_text[:max_chars]}"
     return llm.invoke(prompt).content
 
 
@@ -428,6 +469,43 @@ def build_quiz(llm, transcript_text: str, n: int = 5, max_chars: int = 12000) ->
         "Format in markdown.\n\n" + transcript_text[:max_chars]
     )
     return llm.invoke(prompt).content
+
+
+def build_quiz_data(llm, transcript_text: str, content_type: str = "general", n: int = 5, max_chars: int = 12000) -> list:
+    """Structured quiz for the interactive quiz UI. Returns a list of
+    {question, options[4], answer (0-3), explanation}."""
+    import json
+    flavor = {
+        "music": "fun trivia about the song, artist, lyrics and theme",
+        "gaming": "questions about plays, strategies and moments in the video",
+        "educational": "questions testing understanding of the concepts taught",
+        "general": "questions about the key points of the video",
+    }[content_type]
+    prompt = (
+        f"Based on the transcript below, write {n} multiple-choice questions ({flavor}). "
+        "Reply with ONLY a valid JSON array, no markdown fences, no commentary. "
+        'Each item: {"question": "...", "options": ["...", "...", "...", "..."], '
+        '"answer": 0-3 index of the correct option, "explanation": "one line"}.\n\n'
+        + transcript_text[:max_chars]
+    )
+    raw = llm.invoke(prompt).content.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    data = json.loads(raw)
+    clean = []
+    for item in data[:n]:
+        opts = [str(o) for o in item.get("options", [])][:4]
+        ans = int(item.get("answer", 0))
+        if len(opts) == 4 and 0 <= ans <= 3 and item.get("question"):
+            clean.append({
+                "question": str(item["question"]),
+                "options": opts,
+                "answer": ans,
+                "explanation": str(item.get("explanation", "")),
+            })
+    if not clean:
+        raise ValueError("Quiz came back empty — try again.")
+    return clean
 
 
 def build_key_moments(docs: list[Document], max_items: int = 8) -> list[dict]:
