@@ -153,6 +153,15 @@ if st.session_state.get("restore_pending"):
 
 provider, model, api_key = utils.resolve_provider()
 
+# Guest refresh safety: keep the pasted links in the URL so a browser
+# refresh restores them even though server-side state is wiped.
+try:
+    qp_urls = st.query_params.get("urls", "")
+    if qp_urls and "raw_urls_box" not in st.session_state:
+        st.session_state.raw_urls_box = qp_urls
+except Exception:
+    pass
+
 try:
     llm = utils.get_llm(provider, api_key, model)
 except Exception as e:
@@ -311,26 +320,34 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
     return True
 
 
-if load_btn and raw_urls:
-    video_ids = []
-    for line in raw_urls.splitlines()[:50]:
-        line = line.strip()
-        if not line:
-            continue
-        if utils.is_playlist_url(line):
-            for entry in utils.expand_playlist(line):
-                vid = utils.extract_video_id(str(entry)) or str(entry)
+if load_btn:
+    if not (raw_urls or "").strip():
+        st.warning("Paste a YouTube link first — the box is empty on the server. "
+                   "If you can see a link, click inside the box, press space then backspace, and try Load again.")
+    else:
+        try:
+            st.query_params["urls"] = raw_urls
+        except Exception:
+            pass
+        video_ids = []
+        for line in raw_urls.splitlines()[:50]:
+            line = line.strip()
+            if not line:
+                continue
+            if utils.is_playlist_url(line):
+                for entry in utils.expand_playlist(line):
+                    vid = utils.extract_video_id(str(entry)) or str(entry)
+                    if vid:
+                        video_ids.append(vid)
+            else:
+                vid = utils.extract_video_id(line)
                 if vid:
                     video_ids.append(vid)
+        video_ids = list(dict.fromkeys(video_ids))[: utils.MAX_VIDEOS]
+        if not video_ids:
+            st.error("No valid video IDs found.")
         else:
-            vid = utils.extract_video_id(line)
-            if vid:
-                video_ids.append(vid)
-    video_ids = list(dict.fromkeys(video_ids))[: utils.MAX_VIDEOS]
-    if not video_ids:
-        st.error("No valid video IDs found.")
-    else:
-        load_video_ids(video_ids, utils.LANGUAGES[lang_choice])
+            load_video_ids(video_ids, utils.LANGUAGES[lang_choice])
 
 if st.session_state.pop("restore_videos", None) and not st.session_state.video_docs:
     saved_ids = st.session_state.get("video_ids", [])
