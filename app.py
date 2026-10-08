@@ -28,9 +28,14 @@ h1 { border-bottom: 4px solid #FF0000; padding-bottom: .3rem; }
 .stButton > button[kind="primary"], .stButton > button:hover { border-color: #FF0000; }
 .stChatMessage { border-radius: 14px; }
 [data-testid="stSidebar"] { background: linear-gradient(180deg, #1a0505 0%, #0f0f0f 30%); }
-[data-testid="stSidebar"] * { color: #f5f5f5 !important; }
-[data-testid="stSidebar"] .stTextInput input, [data-testid="stSidebar"] .stTextArea textarea,
-[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] { color: #0f0f0f !important; }
+[data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] .stRadio label, [data-testid="stSidebar"] .stCheckbox label,
+[data-testid="stSidebar"] .stToggle label { color: #f5f5f5 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #ffffff !important; color: #111111 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #111111 !important; fill: #111111 !important; }
 section[data-testid="stSidebar"] img { border-radius: 10px; }
 .stTabs [data-baseweb="tab"] { font-weight: 600; }
 .stTabs [aria-selected="true"] { color: #FF0000 !important; }
@@ -47,6 +52,7 @@ DARK_CSS = """
 .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { background: #0b0b0f !important; }
 .block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #f1f1f1 !important; }
 .stTextInput input, .stTextArea textarea { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; border: 1px solid #cccccc !important; }
 .stChatMessage { background: #141419 !important; border: 1px solid #26262e !important; }
 .stChatInputContainer textarea, [data-testid="stChatInput"] textarea { background: #1c1c22 !important; color: #fff !important; }
 .stTabs [data-baseweb="tab"] { color: #bbbbbb !important; }
