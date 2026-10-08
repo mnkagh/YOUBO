@@ -14,3 +14,4 @@ rank-bm25
 yt-dlp
 fpdf2
 requests
+faster-whisper

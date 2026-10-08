@@ -332,6 +332,70 @@ def content_type_of(meta: dict) -> str:
         return "educational"
     return "general"
 
+def transcribe_audio(video_id: str, model_name: str | None = None) -> tuple:
+    """Fallback when a video has no captions: download audio, transcribe it
+    (local faster-whisper if allowed, else free Hugging Face cloud ASR).
+    Returns timestamped snippets, same shape as captions."""
+    import tempfile
+    import yt_dlp
+    tmpdir = tempfile.mkdtemp(prefix="youbo_")
+    try:
+        with yt_dlp.YoutubeDL({
+            "format": "bestaudio/best", "quiet": True,
+            "outtmpl": os.path.join(tmpdir, "audio.%(ext)s"),
+        }) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
+            audio_path = ydl.prepare_filename(info)
+        try:
+            return _transcribe_local(audio_path, model_name), "unknown (local speech-to-text)"
+        except Exception as e:
+            log.warning(f"local transcription blocked ({e}) — trying cloud ASR")
+            return _transcribe_cloud(audio_path)
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _transcribe_local(audio_path: str, model_name: str | None = None) -> list:
+    from faster_whisper import WhisperModel
+    model_name = model_name or os.getenv("WHISPER_MODEL", "tiny")
+    with Timer(f"whisper local [{model_name}]"):
+        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        segments, _ = model.transcribe(audio_path, beam_size=5)
+        snippets = [{"text": s.text.strip(), "start": s.start, "duration": s.end - s.start}
+                    for s in segments if s.text.strip()]
+    if not snippets:
+        raise RuntimeError("Audio transcription came back empty.")
+    return snippets
+
+
+def _transcribe_cloud(audio_path: str) -> tuple:
+    from huggingface_hub import InferenceClient
+    token = os.getenv("HF_TOKEN", "")
+    if not token:
+        raise RuntimeError(
+            "This video has no captions, and on-device transcription is blocked on this PC. "
+            "Add a free Hugging Face token as HF_TOKEN in .env to transcribe such videos "
+            "(https://huggingface.co/settings/tokens).")
+    size_mb = os.path.getsize(audio_path) / 1e6
+    if size_mb > 25:
+        raise RuntimeError(
+            f"This video has no captions and its audio ({size_mb:.0f}MB) is too big for "
+            "free cloud transcription. Try a shorter video.")
+    with Timer("whisper cloud"):
+        client = InferenceClient(token=token)
+        with open(audio_path, "rb") as f:
+            out = client.automatic_speech_recognition(
+                f.read(), model="openai/whisper-large-v3-turbo", return_timestamps=True)
+    chunks = out.get("chunks", []) if isinstance(out, dict) else []
+    snippets = [{"text": c["text"].strip(), "start": c["timestamp"][0] or 0,
+                 "duration": (c["timestamp"][1] or 0) - (c["timestamp"][0] or 0)}
+                for c in chunks if c["text"].strip()]
+    if not snippets:
+        raise RuntimeError("Cloud transcription came back empty.")
+    return snippets, "unknown (cloud speech-to-text)"
+
+
 def fetch_transcript(video_id: str, language: str = "auto") -> tuple:
     """Returns (snippets, language_name). Prefers the requested language,
     falls back to whatever captions exist (manual first, then auto-generated)."""

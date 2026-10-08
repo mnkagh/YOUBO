@@ -15,6 +15,7 @@ Chat with YouTube videos.
 - **Study notes export** — structured markdown notes, downloadable as `.md` or `.pdf`
 - **Key moments timeline** — evenly-spaced timestamped highlights with links
 - **Video metadata** — titles, channels, durations shown in the sidebar
+- **No-captions fallback** — caption-less videos are transcribed automatically (on-device where allowed, else free Hugging Face cloud ASR with `HF_TOKEN`)
 - **Chat export** — download the full conversation as markdown
 - **Cached index** — the vector/BM25 index is built once per video set, not on every rerun
 - **Input hardening** — length limits, playlist caps, transcript size caps, graceful errors

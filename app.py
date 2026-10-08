@@ -278,7 +278,15 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
                 meta[vid] = utils.get_video_metadata(vid)
             except Exception as e:
                 utils.log_error(f"transcript {vid}", e)
-                st.warning(f"Skipping {vid}: could not get captions ({e})")
+                st.write(f"No captions for {vid} — transcribing audio locally (slower, one-time)...")
+                try:
+                    snippets, lang_name = utils.transcribe_audio(vid)
+                    all_docs.extend(utils.transcript_to_docs(vid, snippets))
+                    langs.append(lang_name)
+                    meta[vid] = utils.get_video_metadata(vid)
+                except Exception as e2:
+                    utils.log_error(f"audio fallback {vid}", e2)
+                    st.warning(f"Skipping {vid}: no captions and audio transcription failed ({e2})")
         if all_docs:
             st.write("Building search index...")
             try:
