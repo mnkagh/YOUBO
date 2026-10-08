@@ -9,6 +9,9 @@ env/
 # Server logs
 logs/
 
+# Local user accounts + saved sessions (contain user data)
+data/
+
 # Python
 __pycache__/
 *.py[cod]

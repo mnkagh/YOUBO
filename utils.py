@@ -508,6 +508,53 @@ def build_quiz_data(llm, transcript_text: str, content_type: str = "general", n:
     return clean
 
 
+GUIDE_MD = """
+## How YOUBO works — the honest version
+
+**The pipeline:** YouTube captions → text chunks → embeddings → Qdrant (vectors) + BM25 (keywords) → history-aware retrieval → LLM answer with timestamp links.
+
+### What each tool does, and what you could use instead
+
+| Tool | Job here | Alternatives | Pros of ours | Cons of ours |
+|---|---|---|---|---|
+| **Streamlit** | The web UI | Gradio, Next.js, Flask | 5-minute UIs in pure Python | Reruns whole script per click; not ideal for huge scale |
+| **LangChain** | Wires retriever + LLM + history | LlamaIndex, raw API calls | Standard building blocks | Heavy dependency, APIs shift fast (v1 moved `chains`) |
+| **Qdrant** | Vector search over chunks | FAISS, Chroma, Pinecone | Fast, filterable, runs in-memory with zero setup | In-memory = rebuilt per load (fine for <50 videos) |
+| **BM25** | Keyword search (names, exact terms) | TF-IDF, Elasticsearch | Catches what embeddings miss (e.g. "Residuals") | Dumb to synonyms — that's why it's hybrid, not solo |
+| **FastEmbed (ONNX)** | Turns text into vectors | OpenAI embeddings, sentence-transformers | Loads in ~0.3s on CPU, free, no torch | Slightly weaker than big models on tricky paraphrase |
+| **Groq / Ollama / …** | Writes the final answer | OpenAI, Gemini, local llama.cpp | Groq free tier is fast + documented; Ollama is unlimited + private | Free tiers change; local needs ~8GB RAM for good models |
+
+### "What if I don't have X?"
+
+- **No GPU?** You don't need one. Everything here is CPU-first (ONNX embeddings, API LLMs, or small Ollama models like `llama3.2`).
+- **No API key?** Use Ollama (host installs once, visitors never see keys) or the anonymous Pollinations fallback.
+- **No Ollama?** Set `LLM_PROVIDER` + a free Groq/Gemini/OpenRouter key in `.env` — 2 minutes, no install.
+- **Video has no captions?** Nothing to retrieve — YOUBO will tell you. Auto-generated captions count, so most videos work.
+- **Huge playlist?** Loading caps at 20 videos / transcript size caps keep memory sane. Load in batches for monster playlists.
+- **Slow first load?** That's the embedding model downloading once (~100MB, cached after). Check Diagnostics timings to see which step costs.
+
+### Deep questions, straight answers
+
+- **Why hybrid (vector + keyword)?** Vectors find *meaning* ("songs about heartbreak"); keywords find *exact strings* ("Residuals", "Mosh"). Either alone misses things.
+- **Why timestamps?** A RAG answer without sources is a rumor. Every chunk carries its `&t=` link so you can verify in one click.
+- **Why chat history rewriting?** Follow-ups like "what about the second one?" are meaningless alone — the history-aware retriever rewrites them into standalone questions first.
+- **Is my data private?** With Ollama: yes, 100% local. With cloud LLMs: your questions + retrieved chunks go to that provider (their policy applies). Chat logs stay on this server only.
+"""
+
+TARGET_LANGS = ["Hindi", "Spanish", "French", "German", "Portuguese",
+                 "Arabic", "Tamil", "Telugu", "Bengali", "Marathi",
+                 "Japanese", "Korean", "English"]
+
+
+def translate_text(llm, text: str, target_lang: str, max_chars: int = 12000) -> str:
+    prompt = (
+        f"Translate the following markdown content into {target_lang}. "
+        "Keep all markdown formatting, headings, bullet points and links intact. "
+        "Reply with ONLY the translation.\n\n" + text[:max_chars]
+    )
+    return llm.invoke(prompt).content
+
+
 def build_key_moments(docs: list[Document], max_items: int = 8) -> list[dict]:
     """Pick evenly spaced chunks across videos as 'key moments' with links."""
     if not docs:

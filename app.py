@@ -12,14 +12,105 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 import utils
+import auth
 
 load_dotenv()
 if os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
 
 st.set_page_config(page_title="YOUBO", page_icon=":tv:", layout="wide")
+
+THEME_CSS = """
+<style>
+.block-container { max-width: 1100px; }
+h1 { border-bottom: 4px solid #FF0000; padding-bottom: .3rem; }
+.stButton > button { border-radius: 999px; font-weight: 600; }
+.stButton > button[kind="primary"], .stButton > button:hover { border-color: #FF0000; }
+.stChatMessage { border-radius: 14px; }
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a0505 0%, #0f0f0f 30%); }
+[data-testid="stSidebar"] * { color: #f5f5f5 !important; }
+[data-testid="stSidebar"] .stTextInput input, [data-testid="stSidebar"] .stTextArea textarea,
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] { color: #0f0f0f !important; }
+section[data-testid="stSidebar"] img { border-radius: 10px; }
+.stTabs [data-baseweb="tab"] { font-weight: 600; }
+.stTabs [aria-selected="true"] { color: #FF0000 !important; }
+.stMetric { background: #fff5f5; border: 1px solid #ffc9c9; border-radius: 12px; padding: .5rem; }
+</style>
+"""
+st.markdown(THEME_CSS, unsafe_allow_html=True)
 st.title("YOUBO — Chat with YouTube Videos")
 st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
+
+
+def persist_user_state() -> None:
+    user = st.session_state.get("auth_user")
+    if not user:
+        return  # guest mode: nothing saved
+    auth.save_state(user, {
+        "raw_urls": st.session_state.get("raw_urls_box", ""),
+        "lang": st.session_state.get("lang_choice", "Auto (any available)"),
+        "compare": st.session_state.get("compare_mode", False),
+        "video_ids": st.session_state.video_ids,
+        "video_meta": st.session_state.video_meta,
+        "video_lang": st.session_state.video_lang,
+        "chat_names": st.session_state.chat_names,
+        "active_chat": st.session_state.active_chat,
+        "chats": {cid: auth.history_to_list(h) for cid, h in st.session_state.store.items()},
+    })
+
+
+if "auth_user" not in st.session_state:
+    st.session_state.auth_user = None
+    st.session_state.guest = False
+
+if st.session_state.auth_user is None and not st.session_state.guest:
+    t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest"])
+    with t_login:
+        u = st.text_input("Username", key="li_user")
+        p = st.text_input("Password", type="password", key="li_pass")
+        if st.button("Login", type="primary"):
+            if auth.verify(u, p):
+                st.session_state.auth_user = u.strip().lower()
+                st.session_state.restore_pending = True
+                st.rerun()
+            else:
+                st.error("Wrong username or password.")
+    with t_signup:
+        u = st.text_input("Username", key="su_user")
+        p = st.text_input("Password", type="password", key="su_pass")
+        if st.button("Create account", type="primary"):
+            err = auth.signup(u, p)
+            if err:
+                st.error(err)
+            else:
+                st.session_state.auth_user = u.strip().lower()
+                st.success("Account created — you're logged in.")
+                st.rerun()
+    with t_guest:
+        st.write("Guest mode: everything works, but chats and inputs vanish on reload.")
+        if st.button("Continue as guest", type="primary"):
+            st.session_state.guest = True
+            st.rerun()
+    st.stop()
+
+if st.session_state.get("restore_pending"):
+    st.session_state.restore_pending = False
+    saved = auth.load_state(st.session_state.auth_user)
+    if saved:
+        st.session_state.chat_names = saved.get("chat_names", {})
+        st.session_state.active_chat = saved.get("active_chat")
+        st.session_state.store = {
+            cid: auth.list_to_history(items) for cid, items in saved.get("chats", {}).items()
+        }
+        st.session_state.raw_urls_box = saved.get("raw_urls", "")
+        st.session_state.lang_choice = saved.get("lang", "Auto (any available)")
+        st.session_state.compare_mode = saved.get("compare", False)
+        st.session_state.restore_videos = saved.get("video_ids", [])
+        st.session_state.video_meta = saved.get("video_meta", {})
+        st.session_state.video_lang = saved.get("video_lang", "")
+        if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
+            new_chat()
+    st.rerun()
 
 provider, model, api_key = utils.resolve_provider()
 
@@ -31,8 +122,6 @@ except Exception as e:
         "(Host: set LLM_PROVIDER + key in .env, or start Ollama.)"
     )
     st.stop()
-
-session_id = st.text_input("Session ID", value="default_session")
 
 for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
                      ("video_docs", []), ("video_ids", []), ("video_meta", {}),
@@ -63,15 +152,28 @@ def get_session_history(session: str) -> BaseChatMessageHistory:
 
 
 with st.sidebar:
+    if st.session_state.auth_user:
+        st.caption(f"Logged in as **{st.session_state.auth_user}** — chats auto-save.")
+        if st.button("Logout"):
+            persist_user_state()
+            st.session_state.auth_user = None
+            st.session_state.guest = False
+            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    else:
+        st.caption("Guest mode — chats vanish on reload. Login to save.")
     st.header("Videos")
     raw_urls = st.text_area(
         "YouTube URLs / video IDs (one per line). Playlists expand to the first 10 videos.",
         height=140,
         placeholder="https://www.youtube.com/watch?v=...",
+        key="raw_urls_box",
     )
-    load_btn = st.button("Load videos")
-    lang_choice = st.selectbox("Transcript language", list(utils.LANGUAGES), index=0)
-    compare_mode = st.checkbox("Multi-video comparison mode", value=False)
+    load_btn = st.button("Load videos", type="primary")
+    lang_choice = st.selectbox("Transcript language", list(utils.LANGUAGES), index=0, key="lang_choice")
+    compare_mode = st.checkbox("Multi-video comparison mode", value=False, key="compare_mode")
 
     st.subheader("Chats")
     if st.button("+ New chat"):
@@ -111,9 +213,51 @@ with st.sidebar:
         st.subheader("Loaded")
         for vid in st.session_state.video_ids:
             meta = st.session_state.video_meta.get(vid, {})
+            if meta.get("thumbnail"):
+                st.image(meta["thumbnail"], use_container_width=True)
             st.markdown(f"**{meta.get('title', vid)}**")
             duration = meta.get("duration") or 0
             st.caption(f"{meta.get('uploader', '')} · {duration // 60}m {duration % 60}s")
+
+
+def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos...") -> bool:
+    """Fetch transcripts + build index. Returns True on success."""
+    all_docs, meta, langs = [], {}, []
+    with st.status(label, expanded=True) as status:
+        st.write("Fetching transcripts...")
+        for vid in video_ids:
+            try:
+                with utils.Timer(f"transcript {vid}"):
+                    snippets, lang_name = utils.fetch_transcript(vid, lang_code)
+                    all_docs.extend(utils.transcript_to_docs(vid, snippets))
+                langs.append(lang_name)
+                meta[vid] = utils.get_video_metadata(vid)
+            except Exception as e:
+                utils.log_error(f"transcript {vid}", e)
+                st.warning(f"Skipping {vid}: could not get captions ({e})")
+        if all_docs:
+            st.write("Building search index...")
+            try:
+                with utils.Timer(f"index {len(video_ids)} video(s)"):
+                    st.session_state.retriever_resources = utils.build_hybrid_retriever(video_ids, all_docs)
+                st.session_state.retriever_cache_key = tuple(video_ids)
+                status.update(label="Videos loaded.", state="complete")
+            except Exception as e:
+                utils.log_error("index build", e)
+                status.update(label="Index build failed — see Diagnostics.", state="error")
+                st.error(f"Could not build the search index: {e}")
+                all_docs = []
+    if not all_docs:
+        st.error("No transcripts available. Videos may lack captions.")
+        return False
+    st.session_state.video_docs = all_docs
+    st.session_state.video_ids = video_ids
+    st.session_state.video_meta = meta
+    st.session_state.video_lang = ", ".join(sorted(set(langs))) or "unknown"
+    st.success(f"Loaded {len(video_ids)} video(s), {len(all_docs)} chunks (captions: {st.session_state.video_lang}).")
+    persist_user_state()
+    return True
+
 
 if load_btn and raw_urls:
     video_ids = []
@@ -134,40 +278,13 @@ if load_btn and raw_urls:
     if not video_ids:
         st.error("No valid video IDs found.")
     else:
-        all_docs, meta, langs = [], {}, []
-        lang_code = utils.LANGUAGES[lang_choice]
-        with st.status("Loading videos...", expanded=True) as status:
-            st.write(f"Fetching transcripts ({lang_choice})...")
-            for vid in video_ids:
-                try:
-                    with utils.Timer(f"transcript {vid}"):
-                        snippets, lang_name = utils.fetch_transcript(vid, lang_code)
-                        all_docs.extend(utils.transcript_to_docs(vid, snippets))
-                    langs.append(lang_name)
-                    meta[vid] = utils.get_video_metadata(vid)
-                except Exception as e:
-                    utils.log_error(f"transcript {vid}", e)
-                    st.warning(f"Skipping {vid}: could not get captions ({e})")
-            if all_docs:
-                st.write("Building search index (first run downloads the embedding model)...")
-                try:
-                    with utils.Timer(f"index {len(video_ids)} video(s)"):
-                        st.session_state.retriever_resources = utils.build_hybrid_retriever(video_ids, all_docs)
-                    st.session_state.retriever_cache_key = tuple(video_ids)
-                    status.update(label="Videos loaded.", state="complete")
-                except Exception as e:
-                    utils.log_error("index build", e)
-                    status.update(label="Index build failed — see Diagnostics.", state="error")
-                    st.error(f"Could not build the search index: {e}")
-                    all_docs = []
-        if not all_docs:
-            st.error("No transcripts available. Videos may lack captions.")
-        else:
-            st.session_state.video_docs = all_docs
-            st.session_state.video_ids = video_ids
-            st.session_state.video_meta = meta
-            st.session_state.video_lang = ", ".join(sorted(set(langs))) or "unknown"
-            st.success(f"Loaded {len(video_ids)} video(s), {len(all_docs)} chunks (captions: {st.session_state.video_lang}).")
+        load_video_ids(video_ids, utils.LANGUAGES[lang_choice])
+
+if st.session_state.pop("restore_videos", None) and not st.session_state.video_docs:
+    saved_ids = st.session_state.get("video_ids", [])
+    if saved_ids:
+        load_video_ids(saved_ids, utils.LANGUAGES.get(st.session_state.get("lang_choice", "Auto (any available)"), "auto"),
+                       label="Restoring your videos...")
 
 if st.session_state.video_docs:
     docs = st.session_state.video_docs
@@ -239,7 +356,9 @@ if st.session_state.video_docs:
         output_messages_key="answer",
     )
 
-    tab_chat, tab_summary, tab_quiz, tab_notes = st.tabs(["Chat", "Summary", "Quiz", "Notes & Export"])
+    tab_chat, tab_summary, tab_quiz, tab_notes, tab_translate, tab_guide = st.tabs(
+        ["Chat", "Summary", "Quiz", "Notes & Export", "Translate", "Guide"]
+    )
 
     with tab_chat:
         history = get_session_history(st.session_state.active_chat)
@@ -347,5 +466,41 @@ if st.session_state.video_docs:
         if chat_md:
             st.download_button("Download chat history (.md)", chat_md,
                                file_name="chat_history.md", mime="text/markdown")
+
+    with tab_translate:
+        st.caption("Translate the generated summary or notes into another language.")
+        target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
+        c1, c2 = st.columns(2)
+        if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
+            with st.spinner(f"Translating summary to {target}..."):
+                try:
+                    st.session_state.summary_tr = utils.translate_text(llm, st.session_state.summary, target)
+                except Exception as e:
+                    utils.log_error("translate summary", e)
+                    st.error("Translation failed. The error was logged — see Diagnostics.")
+        if c2.button("Translate notes", disabled=not st.session_state.get("notes")):
+            with st.spinner(f"Translating notes to {target}..."):
+                try:
+                    st.session_state.notes_tr = utils.translate_text(llm, st.session_state.notes, target)
+                except Exception as e:
+                    utils.log_error("translate notes", e)
+                    st.error("Translation failed. The error was logged — see Diagnostics.")
+        if not st.session_state.get("summary") and not st.session_state.get("notes"):
+            st.info("Generate a summary or notes first.")
+        if st.session_state.get("summary_tr"):
+            st.subheader(f"Summary ({target})")
+            st.markdown(st.session_state.summary_tr)
+            st.download_button("Download translation (.md)", st.session_state.summary_tr,
+                               file_name=f"summary_{target}.md", mime="text/markdown")
+        if st.session_state.get("notes_tr"):
+            st.subheader(f"Notes ({target})")
+            st.markdown(st.session_state.notes_tr)
+            st.download_button("Download translation (.md)", st.session_state.notes_tr,
+                               file_name=f"notes_{target}.md", mime="text/markdown")
+
+    with tab_guide:
+        st.markdown(utils.GUIDE_MD)
+
+    persist_user_state()
 else:
     st.info("Load at least one video from the sidebar to start chatting.")
