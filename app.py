@@ -38,6 +38,37 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
+
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True  # black by default
+
+DARK_CSS = """
+<style>
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { background: #0b0b0f !important; }
+.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #f1f1f1 !important; }
+.stTextInput input, .stTextArea textarea { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
+.stChatMessage { background: #141419 !important; border: 1px solid #26262e !important; }
+.stChatInputContainer textarea, [data-testid="stChatInput"] textarea { background: #1c1c22 !important; color: #fff !important; }
+.stTabs [data-baseweb="tab"] { color: #bbbbbb !important; }
+.stTabs [data-baseweb="tab-list"] { background: #0b0b0f !important; }
+.stExpander, details { background: #141419 !important; border-color: #26262e !important; }
+.stExpander summary, .stExpander p, .stExpander span { color: #f1f1f1 !important; }
+.stRadio label, .stCheckbox label, .stSelectbox label { color: #f1f1f1 !important; }
+.stButton > button { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
+.stButton > button:hover { border-color: #FF0000 !important; color: #ffffff !important; }
+.stDownloadButton > button { background: #2a0d0d !important; color: #ffb3b3 !important; border: 1px solid #7a1f1f !important; }
+.stMetric { background: #1a1010 !important; border: 1px solid #5c1a1a !important; }
+.stMetric label, .stMetric div { color: #ffd7d7 !important; }
+code, pre, [data-testid="stCodeBlock"] { background: #141419 !important; }
+[data-testid="stCodeBlock"] code { color: #e8e8e8 !important; }
+.stSlider label { color: #f1f1f1 !important; }
+.stAlert { filter: brightness(.92); }
+hr { border-color: #2a2a32 !important; }
+</style>
+"""
+if st.session_state.dark_mode:
+    st.markdown(DARK_CSS, unsafe_allow_html=True)
+
 st.title("YOUBO — Chat with YouTube Videos")
 st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
 
@@ -47,6 +78,7 @@ def persist_user_state() -> None:
     if not user:
         return  # guest mode: nothing saved
     auth.save_state(user, {
+        "dark_mode": st.session_state.get("dark_mode", True),
         "raw_urls": st.session_state.get("raw_urls_box", ""),
         "lang": st.session_state.get("lang_choice", "Auto (any available)"),
         "compare": st.session_state.get("compare_mode", False),
@@ -97,6 +129,7 @@ if st.session_state.get("restore_pending"):
     st.session_state.restore_pending = False
     saved = auth.load_state(st.session_state.auth_user)
     if saved:
+        st.session_state.dark_mode = saved.get("dark_mode", True)
         st.session_state.chat_names = saved.get("chat_names", {})
         st.session_state.active_chat = saved.get("active_chat")
         st.session_state.store = {
@@ -152,6 +185,11 @@ def get_session_history(session: str) -> BaseChatMessageHistory:
 
 
 with st.sidebar:
+    dark = st.toggle("Dark mode", value=st.session_state.dark_mode)
+    if dark != st.session_state.dark_mode:
+        st.session_state.dark_mode = dark
+        persist_user_state()
+        st.rerun()
     if st.session_state.auth_user:
         st.caption(f"Logged in as **{st.session_state.auth_user}** — chats auto-save.")
         if st.button("Logout"):
