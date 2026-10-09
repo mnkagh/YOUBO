@@ -113,6 +113,7 @@ def persist_user_state() -> None:
         "video_lang": st.session_state.video_lang,
         "chat_names": st.session_state.chat_names,
         "active_chat": st.session_state.active_chat,
+        "transcript_tr": st.session_state.get("transcript_tr"),
         "chats": {cid: auth.history_to_list(h) for cid, h in st.session_state.store.items()},
     })
 
@@ -218,7 +219,8 @@ except Exception as e:
 for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
                      ("video_docs", []), ("video_ids", []), ("video_meta", {}),
                      ("video_lang", ""), ("notes", None), ("quiz", None),
-                     ("quiz_data", None), ("quiz_done", False)]:
+                     ("quiz_data", None), ("quiz_done", False),
+                     ("transcript_tr", None)]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -623,8 +625,56 @@ if st.session_state.video_docs:
                                file_name="chat_history.md", mime="text/markdown")
 
     if section == "Translate":
-        st.caption("Translate the generated summary or notes into another language.")
+        st.caption("Get the video in your language: full timestamped transcript, summary, or notes.")
         target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
+        n_calls = (len(docs) + 3) // 4
+        if st.button(f"Translate full transcript ({n_calls} short calls)", type="primary"):
+            try:
+                bar = st.progress(0.0, text="Translating...")
+                blocks = utils.translate_transcript(
+                    llm, docs, target, batch_chunks=4, progress_cb=lambda f: bar.progress(f))
+                bar.empty()
+                st.session_state.transcript_tr = {"lang": target, "blocks": blocks}
+                persist_user_state()
+            except Exception as e:
+                utils.log_error("translate transcript", e)
+                st.error("Translation failed. The error was logged — see Diagnostics.")
+        tr = st.session_state.get("transcript_tr")
+        if tr and tr.get("lang") == target:
+            st.subheader(f"Full transcript ({target})")
+            for b in tr["blocks"]:
+                st.markdown(f"**[{int(b['start'])}s]({b['link']})**")
+                st.markdown(b["text"])
+            st.download_button(
+                "Download translated transcript (.md)",
+                utils.transcript_blocks_to_md(tr["blocks"], target),
+                file_name=f"transcript_{target}.md", mime="text/markdown")
+        elif tr:
+            st.info(f"A {tr['lang']} translation exists — pick {tr['lang']} above to view it, or re-translate.")
+        st.divider()
+
+        st.subheader("Dub this video")
+        st.caption("Same picture, new language: AI voiceover mixed onto the original video. "
+                   f"Capped at {utils.MAX_DUB_SECONDS // 60} min per video.")
+        if st.button("Create dubbed video", type="primary"):
+            try:
+                bar = st.progress(0.0, text="Starting...")
+                mp4 = utils.dub_video(
+                    st.session_state.video_ids[0], llm, target,
+                    utils.LANGUAGES.get(st.session_state.get("lang_choice", "Auto (any available)"), "auto"),
+                    progress_cb=lambda f, msg="": bar.progress(min(f, 1.0), text=msg))
+                bar.empty()
+                st.session_state.dubbed_mp4 = mp4
+                st.session_state.dubbed_lang = target
+                st.success("Dubbed video ready — preview below, download to keep it.")
+            except Exception as e:
+                utils.log_error("dub video", e)
+                st.error(f"Dubbing failed: {e}")
+        if st.session_state.get("dubbed_mp4") and st.session_state.get("dubbed_lang") == target:
+            st.video(st.session_state.dubbed_mp4, format="video/mp4")
+            st.download_button("Download dubbed video (.mp4)", st.session_state.dubbed_mp4,
+                               file_name=f"dubbed_{target}.mp4", mime="video/mp4")
+        st.divider()
         c1, c2 = st.columns(2)
         if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
             try:
