@@ -502,17 +502,7 @@ class LinkAttachingRetriever(BaseRetriever):
         return out
 
 
-def build_notes(llm, transcript_text: str, content_type: str = "general", max_chars: int = 12000) -> str:
-    style = {
-        "music": "Turn this music video transcript/lyrics into fan-style notes: themes, standout lines, and vibe, in markdown.",
-        "gaming": "Turn this gaming video transcript into notes: key plays, strategies, and highlights, in markdown.",
-        "educational": "Turn this transcript into clean, structured study notes in markdown with headings, bullet points, and key takeaways.",
-        "general": "Turn this video transcript into clean, structured notes in markdown with headings, bullet points, and key takeaways.",
-    }[content_type]
-    return llm.invoke(f"{style}\n\n{transcript_text[:max_chars]}").content
-
-
-def build_summary(llm, transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:
+def summary_prompt(transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:
     instructions = {
         "TL;DR": "Write a TL;DR summary in at most 3 sentences.",
         "Short": "Write a short summary in one paragraph (~5 sentences).",
@@ -522,8 +512,50 @@ def build_summary(llm, transcript_text: str, level: str, content_type: str = "ge
             "gaming": "Focus on what happens and key moments. ",
             "educational": "Focus on concepts taught. ",
             "general": ""}[content_type]
-    prompt = f"{hint}{instructions.get(level, instructions['Short'])}\n\n{transcript_text[:max_chars]}"
-    return llm.invoke(prompt).content
+    return f"{hint}{instructions.get(level, instructions['Short'])}\n\n{transcript_text[:max_chars]}"
+
+
+def build_summary(llm, transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:
+    return llm.invoke(summary_prompt(transcript_text, level, content_type, max_chars)).content
+
+
+def notes_prompt(transcript_text: str, content_type: str = "general", max_chars: int = 12000) -> str:
+    style = {
+        "music": "Turn this music video transcript/lyrics into fan-style notes: themes, standout lines, and vibe, in markdown.",
+        "gaming": "Turn this gaming video transcript into notes: key plays, strategies, and highlights, in markdown.",
+        "educational": "Turn this transcript into clean, structured study notes in markdown with headings, bullet points, and key takeaways.",
+        "general": "Turn this video transcript into clean, structured notes in markdown with headings, bullet points, and key takeaways.",
+    }[content_type]
+    return f"{style}\n\n{transcript_text[:max_chars]}"
+
+
+def build_notes(llm, transcript_text: str, content_type: str = "general", max_chars: int = 12000) -> str:
+    return llm.invoke(notes_prompt(transcript_text, content_type, max_chars)).content
+
+
+def translate_prompt(text: str, target_lang: str, max_chars: int = 12000) -> str:
+    return (
+        f"Translate the following markdown content into {target_lang}. "
+        "Keep all markdown formatting, headings, bullet points and links intact. "
+        "Reply with ONLY the translation.\n\n" + text[:max_chars]
+    )
+
+
+def translate_text(llm, text: str, target_lang: str, max_chars: int = 12000) -> str:
+    return llm.invoke(translate_prompt(text, target_lang, max_chars)).content
+
+
+def stream_answer(llm, prompt: str):
+    """Yield response tokens as they arrive (instant perceived speed)."""
+    for chunk in llm.stream(prompt):
+        text = getattr(chunk, "content", "")
+        if isinstance(text, list):  # content blocks (Anthropic-style)
+            text = "".join(
+                b.get("text", "") if isinstance(b, dict) else str(getattr(b, "text", b))
+                for b in text
+            )
+        if text:
+            yield text
 
 
 def build_quiz(llm, transcript_text: str, n: int = 5, max_chars: int = 12000) -> str:
@@ -611,12 +643,7 @@ TARGET_LANGS = ["Hindi", "Spanish", "French", "German", "Portuguese",
 
 
 def translate_text(llm, text: str, target_lang: str, max_chars: int = 12000) -> str:
-    prompt = (
-        f"Translate the following markdown content into {target_lang}. "
-        "Keep all markdown formatting, headings, bullet points and links intact. "
-        "Reply with ONLY the translation.\n\n" + text[:max_chars]
-    )
-    return llm.invoke(prompt).content
+    return llm.invoke(translate_prompt(text, target_lang, max_chars)).content
 
 
 def build_key_moments(docs: list[Document], max_items: int = 8) -> list[dict]:

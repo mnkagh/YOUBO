@@ -40,6 +40,9 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 .stTabs [data-baseweb="tab"] { font-weight: 600; }
 .stTabs [aria-selected="true"] { color: #FF0000 !important; }
 .stMetric { background: #fff5f5; border: 1px solid #ffc9c9; border-radius: 12px; padding: .5rem; }
+div[data-testid="stChatInput"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important; }
+div[data-testid="stRadio"][data-test-anchor="tabbar"] label { font-weight: 700; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -60,7 +63,8 @@ DARK_CSS = """
 .stTextInput input, .stTextArea textarea { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
 [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; border: 1px solid #cccccc !important; }
 .stChatMessage { background: #141419 !important; border: 1px solid #26262e !important; }
-.stChatInputContainer textarea, [data-testid="stChatInput"] textarea { background: #1c1c22 !important; color: #fff !important; }
+div[data-testid="stChatInput"] textarea { background: #1c1c22 !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+div[data-testid="stChatInput"] textarea::placeholder { color: #999999 !important; }
 .stTabs [data-baseweb="tab"] { color: #bbbbbb !important; }
 .stTabs [data-baseweb="tab-list"] { background: #0b0b0f !important; }
 .stExpander, details { background: #141419 !important; border-color: #26262e !important; }
@@ -458,18 +462,52 @@ if st.session_state.video_docs:
     ])
     history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
     rag_chain = create_retrieval_chain(history_aware_retriever, create_stuff_documents_chain(llm, qa_prompt))
-    chain = RunnableWithMessageHistory(
-        rag_chain, get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-        output_messages_key="answer",
-    )
+    chain_key = (st.session_state.retriever_cache_key, compare_mode, provider, model)
+    if st.session_state.get("chain_key") != chain_key:
+        st.session_state.chain = RunnableWithMessageHistory(
+            rag_chain, get_session_history,
+            input_messages_key="input",
+            history_messages_key="chat_history",
+            output_messages_key="answer",
+        )
+        st.session_state.chain_key = chain_key
+    chain = st.session_state.chain
 
-    tab_chat, tab_summary, tab_quiz, tab_notes, tab_translate, tab_guide = st.tabs(
-        ["Chat", "Summary", "Quiz", "Notes & Export", "Translate", "Guide"]
-    )
+    # Persistent section bar: st.tabs resets to the first tab on every rerun,
+    # a radio keeps the user where they were.
+    SECTIONS = ["Chat", "Summary", "Quiz", "Notes & Export", "Translate", "Guide"]
+    if st.session_state.get("section") not in SECTIONS:
+        st.session_state.section = "Chat"
+    section = st.radio("Section", SECTIONS, index=SECTIONS.index(st.session_state.section),
+                       horizontal=True, label_visibility="collapsed", key="tabbar")
+    st.session_state.section = section
 
-    with tab_chat:
+    @st.fragment
+    def quiz_fragment():
+        """Answer clicks rerun ONLY this fragment — instant, no full-page reload."""
+        if not st.session_state.get("quiz_data"):
+            st.info("Generate a quiz to start answering.")
+            return
+        for i, q in enumerate(st.session_state.quiz_data):
+            st.markdown(f"**Q{i + 1}. {q['question']}**")
+            st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
+            if st.session_state.quiz_done:
+                picked = st.session_state.get(f"quiz_a_{i}")
+                correct = picked == q["options"][q["answer"]]
+                st.markdown("Correct!" if correct else f"Wrong — answer: **{q['options'][q['answer']]}**")
+                st.caption(q["explanation"])
+        c1, c2 = st.columns(2)
+        if c1.button("Check answers"):
+            st.session_state.quiz_done = True
+            st.rerun(scope="fragment")
+        if st.session_state.quiz_done:
+            score = sum(
+                1 for i, q in enumerate(st.session_state.quiz_data)
+                if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]]
+            )
+            c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
+
+    if section == "Chat":
         history = get_session_history(st.session_state.active_chat)
         for i, msg in enumerate(history.messages):
             with st.chat_message("user" if i % 2 == 0 else "assistant"):
@@ -481,37 +519,53 @@ if st.session_state.video_docs:
             else:
                 with st.chat_message("user"):
                     st.markdown(user_input)
-                with st.spinner("Thinking..."):
-                    try:
-                        response = chain.invoke(
-                            {"input": user_input},
-                            config={"configurable": {"session_id": st.session_state.active_chat}},
-                        )
-                        with st.chat_message("assistant"):
-                            st.markdown(response["answer"])
-                    except Exception as e:
-                        utils.log_error("chat answer", e)
-                        st.error("Sorry, that answer failed. The error was logged — see Diagnostics in the sidebar.")
-                st.rerun()
+                try:
+                    with st.chat_message("assistant"):
+                        ph = st.empty()
+                        buf: list = []
+
+                        def _answer_stream():
+                            for chunk in chain.stream(
+                                {"input": user_input},
+                                config={"configurable": {"session_id": st.session_state.active_chat}},
+                            ):
+                                text = chunk.get("answer") if isinstance(chunk, dict) else None
+                                if isinstance(text, str) and text:
+                                    buf.append(text)
+                                    yield text
+                        for _piece in _answer_stream():
+                            ph.markdown("".join(buf) + "▌")
+                        ph.markdown("".join(buf))
+                    persist_user_state()
+                except Exception as e:
+                    utils.log_error("chat answer", e)
+                    st.error("Sorry, that answer failed. The error was logged — see Diagnostics in the sidebar.")
 
     main_type = content_types[0] if content_types else "general"
 
-    with tab_summary:
+    if section == "Summary":
         level = st.radio("Summary length", ["TL;DR", "Short", "Detailed"], horizontal=True)
         if st.button("Generate summary"):
             full_text = "\n".join(d.page_content for d in docs)
-            with st.spinner("Summarizing..."):
-                try:
-                    st.session_state.summary = utils.build_summary(llm, full_text, level, main_type)
-                except Exception as e:
-                    utils.log_error("summary", e)
-                    st.error("Summary failed. The error was logged — see Diagnostics in the sidebar.")
+            prompt = utils.summary_prompt(full_text, level, main_type)
+            try:
+                ph = st.empty()
+                buf: list = []
+                for tok in utils.stream_answer(llm, prompt):
+                    buf.append(tok)
+                    ph.markdown("".join(buf) + "▌")
+                ph.markdown("".join(buf))
+                st.session_state.summary = "".join(buf)
+                persist_user_state()
+            except Exception as e:
+                utils.log_error("summary", e)
+                st.error("Summary failed. The error was logged — see Diagnostics in the sidebar.")
         if st.session_state.get("summary"):
             st.markdown(st.session_state.summary)
             st.download_button("Download summary (.md)", st.session_state.summary,
                                file_name="summary.md", mime="text/markdown")
 
-    with tab_quiz:
+    if section == "Quiz":
         st.caption(f"Quiz adapts to this content: {main_type}. Answer, then check your score with explanations.")
         n_q = st.slider("Number of questions", 3, 10, 5)
         if st.button("Generate quiz"):
@@ -520,38 +574,30 @@ if st.session_state.video_docs:
                 try:
                     st.session_state.quiz_data = utils.build_quiz_data(llm, full_text, main_type, n=n_q)
                     st.session_state.quiz_done = False
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("quiz_a_"):
+                            del st.session_state[k]
                 except Exception as e:
                     utils.log_error("quiz", e)
                     st.error("Quiz generation failed. The error was logged — see Diagnostics in the sidebar.")
-        if st.session_state.quiz_data:
-            for i, q in enumerate(st.session_state.quiz_data):
-                st.markdown(f"**Q{i + 1}. {q['question']}**")
-                st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
-                if st.session_state.quiz_done:
-                    picked = st.session_state.get(f"quiz_a_{i}")
-                    correct = picked == q["options"][q["answer"]]
-                    st.markdown("Correct!" if correct else f"Wrong — answer: **{q['options'][q['answer']]}**")
-                    st.caption(q["explanation"])
-            c1, c2 = st.columns(2)
-            if c1.button("Check answers"):
-                st.session_state.quiz_done = True
-                st.rerun()
-            if st.session_state.quiz_done:
-                score = sum(
-                    1 for i, q in enumerate(st.session_state.quiz_data)
-                    if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]]
-                )
-                c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
+        quiz_fragment()
 
-    with tab_notes:
+    if section == "Notes & Export":
         if st.button("Generate study notes"):
             full_text = "\n".join(d.page_content for d in docs)
-            with st.spinner("Summarizing..."):
-                try:
-                    st.session_state.notes = utils.build_notes(llm, full_text, main_type)
-                except Exception as e:
-                    utils.log_error("notes", e)
-                    st.error("Notes generation failed. The error was logged — see Diagnostics in the sidebar.")
+            prompt = utils.notes_prompt(full_text, main_type)
+            try:
+                ph = st.empty()
+                buf: list = []
+                for tok in utils.stream_answer(llm, prompt):
+                    buf.append(tok)
+                    ph.markdown("".join(buf) + "▌")
+                ph.markdown("".join(buf))
+                st.session_state.notes = "".join(buf)
+                persist_user_state()
+            except Exception as e:
+                utils.log_error("notes", e)
+                st.error("Notes generation failed. The error was logged — see Diagnostics in the sidebar.")
         if st.session_state.notes:
             st.markdown(st.session_state.notes)
             c1, c2 = st.columns(2)
@@ -576,24 +622,36 @@ if st.session_state.video_docs:
             st.download_button("Download chat history (.md)", chat_md,
                                file_name="chat_history.md", mime="text/markdown")
 
-    with tab_translate:
+    if section == "Translate":
         st.caption("Translate the generated summary or notes into another language.")
         target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
         c1, c2 = st.columns(2)
         if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
-            with st.spinner(f"Translating summary to {target}..."):
-                try:
-                    st.session_state.summary_tr = utils.translate_text(llm, st.session_state.summary, target)
-                except Exception as e:
-                    utils.log_error("translate summary", e)
-                    st.error("Translation failed. The error was logged — see Diagnostics.")
+            try:
+                ph = st.empty()
+                buf: list = []
+                for tok in utils.stream_answer(llm, utils.translate_prompt(st.session_state.summary, target)):
+                    buf.append(tok)
+                    ph.markdown("".join(buf) + "▌")
+                ph.markdown("".join(buf))
+                st.session_state.summary_tr = "".join(buf)
+                persist_user_state()
+            except Exception as e:
+                utils.log_error("translate summary", e)
+                st.error("Translation failed. The error was logged — see Diagnostics.")
         if c2.button("Translate notes", disabled=not st.session_state.get("notes")):
-            with st.spinner(f"Translating notes to {target}..."):
-                try:
-                    st.session_state.notes_tr = utils.translate_text(llm, st.session_state.notes, target)
-                except Exception as e:
-                    utils.log_error("translate notes", e)
-                    st.error("Translation failed. The error was logged — see Diagnostics.")
+            try:
+                ph = st.empty()
+                buf: list = []
+                for tok in utils.stream_answer(llm, utils.translate_prompt(st.session_state.notes, target)):
+                    buf.append(tok)
+                    ph.markdown("".join(buf) + "▌")
+                ph.markdown("".join(buf))
+                st.session_state.notes_tr = "".join(buf)
+                persist_user_state()
+            except Exception as e:
+                utils.log_error("translate notes", e)
+                st.error("Translation failed. The error was logged — see Diagnostics.")
         if not st.session_state.get("summary") and not st.session_state.get("notes"):
             st.info("Generate a summary or notes first.")
         if st.session_state.get("summary_tr"):
@@ -607,7 +665,7 @@ if st.session_state.video_docs:
             st.download_button("Download translation (.md)", st.session_state.notes_tr,
                                file_name=f"notes_{target}.md", mime="text/markdown")
 
-    with tab_guide:
+    if section == "Guide":
         st.markdown(utils.GUIDE_MD)
 
     persist_user_state()
