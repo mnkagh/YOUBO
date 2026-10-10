@@ -108,6 +108,8 @@ code, pre, [data-testid="stCodeBlock"] { background: #141419 !important; }
 [data-testid="stCodeBlock"] code { color: #e8e8e8 !important; }
 .stSlider label { color: #f1f1f1 !important; }
 .stAlert { filter: brightness(.92); }
+div[data-testid="stToast"] { background: #1c1c22 !important; border: 1px solid #FF0000 !important; }
+div[data-testid="stToast"] p, div[data-testid="stToast"] span, div[data-testid="stToast"] div { color: #f1f1f1 !important; }
 hr { border-color: #2a2a32 !important; }
 </style>
 """
