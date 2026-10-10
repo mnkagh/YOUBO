@@ -121,12 +121,25 @@ div[data-testid="stChatInput"] button { color: #FF0000 !important; }
   letter-spacing: .05em; font-size: .85rem; color: #fff !important; background: rgba(10,10,14,.9);
   border: 1px solid #FF0000; padding: .25rem .7rem; border-radius: 999px; pointer-events: none; }
 .top-logo span { color: #FF0000 !important; }
+.mode-card { background: linear-gradient(180deg,#17171d,#101014); border: 1px solid #33333d;
+  border-left: 3px solid #FF0000; border-radius: 12px; padding: .9rem 1.1rem;
+  margin: .4rem 0 .9rem; }
+.mode-pill { display: inline-block; font-weight: 700; font-size: .78rem; letter-spacing: .14em;
+  color: #ffb3b3; border: 1px solid #7a1f1f; background: #2a0d0d; border-radius: 999px;
+  padding: .18rem .75rem; margin-bottom: .5rem; }
+.mode-sub { color: #a9a9b3; font-size: .86rem; line-height: 1.5; }
+.hint-card { background: #141419; border: 1px dashed #3a3a44; border-radius: 12px;
+  padding: 1rem 1.15rem; margin-top: .9rem; }
+.hint-text { color: #c9c9d2 !important; font-size: .88rem; margin: 0 0 .55rem; }
+.auth-btns .stButton > button { min-height: 2.7em; font-weight: 600; }
+.stButton > button { min-height: 2.5em; font-weight: 600; }
 </style>
 """
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 
-st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
+if st.session_state.get("section", "Chat") != "Chat":
+    st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
 st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
 
 
@@ -194,7 +207,7 @@ if "auth_user" not in st.session_state:
             st.session_state.restore_pending = "_guest_" + token
 
 if st.session_state.auth_user is None and not st.session_state.guest:
-    t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest"])
+    t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest mode"])
     with t_login:
         u = st.text_input("Username", key="li_user")
         p = st.text_input("Password", type="password", key="li_pass")
@@ -217,8 +230,7 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                 st.success("Account created — you're logged in.")
                 st.rerun()
     with t_guest:
-        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
-        if st.button("Continue as guest", type="primary"):
+        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")        if st.button("Continue as guest", type="primary"):
             import secrets as _secrets
             st.session_state.guest = True
             st.session_state.guest_sid = _secrets.token_hex(8)
@@ -842,26 +854,35 @@ else:
     s3.markdown("**3. Keep**\n\nExport notes, translated transcripts, dubbed MP4s.")
     st.write("")
     if not st.session_state.auth_user:
-        st.caption("Browsing as guest — your work is saved in this browser only.")
-        g1, g2 = st.columns(2)
-        if g1.button("Login", use_container_width=True, key="hero_login"):
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            st.rerun()
-        if g2.button("Create account", use_container_width=True, key="hero_signup", type="primary"):
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
-            st.rerun()
+        st.markdown(
+            '<div class="mode-card"><span class="mode-pill">GUEST MODE</span>'
+            '<div class="mode-sub">Your work is auto-saved in this browser — even after a refresh. '
+            'Log in to take your chats and videos everywhere.</div></div>',
+            unsafe_allow_html=True)
+        gb1, gb2 = st.columns(2, gap="small")
+        with gb1:
+            if st.button("Login", use_container_width=True, key="hero_login", type="primary"):
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                st.rerun()
+        with gb2:
+            if st.button("Create account", use_container_width=True, key="hero_signup"):
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                st.rerun()
         st.write("")
-    st.caption("No link handy? Load this TED talk to see YOUBO in action: 14 min, captioned, quiz-ready.")
-    if st.button("Try a sample talk", type="primary"):
+    st.markdown(
+        '<div class="hint-card"><div class="hint-text">No link handy? '
+        'Load this TED talk to see YOUBO in action — 14 min, captioned, quiz-ready.</div></div>',
+        unsafe_allow_html=True)
+    if st.button("Try a sample talk", type="primary", use_container_width=True):
         st.session_state.load_sample = True
         st.rerun()
