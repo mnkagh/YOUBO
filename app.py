@@ -83,7 +83,8 @@ st.html(
 )
 
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True  # black by default
+    st.session_state.dark_mode = True  # YOUBO is dark-only: bloody red on black.
+st.session_state.dark_mode = True
 
 DARK_CSS = """
 <style>
@@ -111,12 +112,29 @@ code, pre, [data-testid="stCodeBlock"] { background: #141419 !important; }
 div[data-testid="stToast"] { background: #1c1c22 !important; border: 1px solid #FF0000 !important; }
 div[data-testid="stToast"] p, div[data-testid="stToast"] span, div[data-testid="stToast"] div { color: #f1f1f1 !important; }
 hr { border-color: #2a2a32 !important; }
+div[data-testid="stChatInput"], [data-testid="stBottomBlockContainer"] { background: transparent !important; }
+div[data-testid="stChatInput"] textarea { background: #141419 !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; caret-color: #FF0000 !important; border: 1px solid #3a3a44 !important; }
+div[data-testid="stChatInput"] textarea::placeholder { color: #999999 !important; opacity: 1 !important; }
+div[data-testid="stChatInput"] button { color: #FF0000 !important; }
+[data-testid="stSidebarCollapsedControl"] { background: #FF0000 !important; border-radius: 10px !important; }
+.top-logo { position: fixed; top: .55rem; right: 1.1rem; z-index: 999999; font-weight: 700;
+  letter-spacing: .05em; font-size: .85rem; color: #fff !important; background: rgba(10,10,14,.9);
+  border: 1px solid #FF0000; padding: .25rem .7rem; border-radius: 999px; pointer-events: none; }
+.top-logo span { color: #FF0000 !important; }
 </style>
 """
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 
-st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
+st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
+_hb1, _hb2 = st.columns([6, 1])
+with _hb1:
+    st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
+with _hb2:
+    st.write("")
+    if st.button("Home", key="main_home", use_container_width=True):
+        st.session_state.section = "Chat"
+        st.rerun()
 
 
 def state_owner() -> str | None:
@@ -290,11 +308,6 @@ if st.session_state.pop("load_sample", False):
     st.session_state.trigger_load = True
 
 with st.sidebar:
-    dark = st.toggle("Dark mode", value=st.session_state.dark_mode)
-    if dark != st.session_state.dark_mode:
-        st.session_state.dark_mode = dark
-        persist_user_state()
-        st.rerun()
     st.markdown('<div class="logo-anchor"></div>', unsafe_allow_html=True)
     if st.button("▶ YOUBO", key="logo_home"):
         st.session_state.section = "Chat"
@@ -321,6 +334,18 @@ with st.sidebar:
             st.rerun()
     else:
         st.caption("Guest mode — auto-saved in this browser, even on refresh.")
+        if st.button("Switch user"):
+            persist_user_state()
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                      "video_meta", "video_lang", "section"):
+                st.session_state.pop(k, None)
+            st.rerun()
     st.header("Videos")
     raw_urls = st.text_area(
         "YouTube URLs / video IDs (one per line). Playlists expand to the first 10 videos.",
@@ -550,8 +575,8 @@ if st.session_state.video_docs:
                        horizontal=True, label_visibility="collapsed", key="tabbar")
     if section != st.session_state.get("section"):
         st.session_state.section = section
-        st.session_state.section_just_changed = True
-    if st.session_state.pop("section_just_changed", False) and st.session_state.section == "Chat":
+    if st.session_state.section == "Chat" and not st.session_state.get("auto_collapsed_once"):
+        st.session_state.auto_collapsed_once = True
         st.html(
             "<script>(function(){var b=document.querySelector('[data-testid=\"stSidebarCollapseButton\"]');"
             "if(b){b.click();}})();</script>",
