@@ -36,6 +36,9 @@ div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important
   box-shadow: 0 8px 28px rgba(255,0,0,.25); }
 .brandbar h1 { border: none !important; padding: 0 !important; margin: 0 !important; color: #fff !important; font-weight: 700; }
 .brandbar p { margin: .2rem 0 0 0 !important; color: #ffd9d9 !important; }
+.brandbar-hero { text-align: center !important; padding: 2.2rem 1rem 1.8rem !important; border-radius: 20px !important; }
+.brandbar-hero h1 { font-size: 3rem !important; letter-spacing: .22em !important; }
+.brandbar-hero h1::before { content: "▶"; margin-right: .55rem; color: #ffffff; font-size: 2rem; }
 h1 { border-bottom: 4px solid #FF0000; padding-bottom: .3rem; }
 .stButton > button { border-radius: 999px; font-weight: 600; }
 .stButton > button[kind="primary"], .stButton > button:hover { border-color: #FF0000; }
@@ -140,7 +143,10 @@ if st.session_state.dark_mode:
 
 if st.session_state.get("section", "Chat") != "Chat":
     st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
-st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
+if st.session_state.get("section", "Chat") == "Chat":
+    st.markdown('<div class="brandbar brandbar-hero"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
+else:
+    st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
 
 
 def state_owner() -> str | None:
@@ -204,6 +210,7 @@ if "auth_user" not in st.session_state:
         if _re.fullmatch(r"[0-9a-f]{16}", token):
             st.session_state.guest = True
             st.session_state.guest_sid = token
+            st.session_state.last_guest_sid = token
             st.session_state.restore_pending = "_guest_" + token
 
 if st.session_state.auth_user is None and not st.session_state.guest:
@@ -231,14 +238,20 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                 st.rerun()
     with t_guest:
         st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
-        if st.button("Continue as guest", type="primary"):
+        last = st.session_state.get("last_guest_sid")
+        can_restore = bool(last and auth.guest_state_exists(last))
+        if st.button("Restore my guest chats" if can_restore else "Continue as guest", type="primary"):
             import secrets as _secrets
+            sid = last if can_restore else _secrets.token_hex(8)
             st.session_state.guest = True
-            st.session_state.guest_sid = _secrets.token_hex(8)
+            st.session_state.guest_sid = sid
+            st.session_state.last_guest_sid = sid
             try:
-                st.query_params["s"] = st.session_state.guest_sid
+                st.query_params["s"] = sid
             except Exception:
                 pass
+            if can_restore:
+                st.session_state.restore_pending = "_guest_" + sid
             st.rerun()
     st.stop()
 
@@ -343,6 +356,8 @@ with st.sidebar:
         st.caption("Guest mode — auto-saved in this browser, even on refresh.")
         if st.button("Switch user"):
             persist_user_state()
+            if st.session_state.get("guest_sid"):
+                st.session_state.last_guest_sid = st.session_state.guest_sid
             st.session_state.guest = False
             st.session_state.guest_sid = None
             try:
@@ -860,25 +875,33 @@ else:
             '<div class="mode-sub">Your work is auto-saved in this browser — even after a refresh. '
             'Log in to take your chats and videos everywhere.</div></div>',
             unsafe_allow_html=True)
-        gb1, gb2 = st.columns(2, gap="small")
+        gb1, gb2, gb3 = st.columns(3, gap="small")
         with gb1:
-            if st.button("Login", use_container_width=True, key="hero_login", type="primary"):
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                st.rerun()
+            if st.button("My guest chats", use_container_width=True, key="hero_guest_chats", type="primary"):
+                sid = st.session_state.get("guest_sid") or st.session_state.get("last_guest_sid")
+                if sid and auth.guest_state_exists(sid):
+                    st.session_state.guest_sid = sid
+                    st.session_state.last_guest_sid = sid
+                    st.session_state.restore_pending = "_guest_" + sid
+                    st.rerun()
+                else:
+                    st.session_state.no_guest_data = True
         with gb2:
-            if st.button("Create account", use_container_width=True, key="hero_signup"):
+            if st.button("Login", use_container_width=True, key="hero_login"):
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
                 st.session_state.guest = False
                 st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
                 st.rerun()
+        with gb3:
+            if st.button("Create account", use_container_width=True, key="hero_signup"):
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                st.rerun()
+        if st.session_state.pop("no_guest_data", False):
+            st.warning("No saved guest chats on this browser yet — load a video to create some.")
         st.write("")
     st.markdown(
         '<div class="hint-card"><div class="hint-text">No link handy? '
