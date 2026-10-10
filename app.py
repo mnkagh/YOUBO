@@ -22,7 +22,18 @@ st.set_page_config(page_title="YOUBO", page_icon=":tv:", layout="wide")
 
 THEME_CSS = """
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Poppins', sans-serif; }
+footer { visibility: hidden !important; }
+#MainMenu { visibility: hidden !important; }
+[data-testid="stToolbar"] { visibility: hidden !important; }
+[data-testid="stDecoration"] { display: none !important; }
 .block-container { max-width: 1100px; }
+.brandbar { background: linear-gradient(90deg, #FF0000 0%, #7a0d0d 60%, #1a0505 100%);
+  border-radius: 16px; padding: 1.1rem 1.4rem; color: #fff !important; margin-bottom: 1rem;
+  box-shadow: 0 8px 28px rgba(255,0,0,.25); }
+.brandbar h1 { border: none !important; padding: 0 !important; margin: 0 !important; color: #fff !important; font-weight: 700; }
+.brandbar p { margin: .2rem 0 0 0 !important; color: #ffd9d9 !important; }
 h1 { border-bottom: 4px solid #FF0000; padding-bottom: .3rem; }
 .stButton > button { border-radius: 999px; font-weight: 600; }
 .stButton > button[kind="primary"], .stButton > button:hover { border-color: #FF0000; }
@@ -95,8 +106,8 @@ hr { border-color: #2a2a32 !important; }
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 
-st.title("YOUBO — Chat with YouTube Videos")
-st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
+st.markdown('<div class="brandbar"><h1>YOUBO</h1><p>Chat with YouTube videos — answers with timestamped proof.</p></div>',
+            unsafe_allow_html=True)
 
 
 def state_owner() -> str | None:
@@ -204,7 +215,16 @@ if st.session_state.get("restore_pending"):
     saved = auth.load_state(owner) if isinstance(owner, str) and owner else {}
     if saved:
         apply_saved_state(saved)
+        n_chats = len(saved.get("chat_names", {}))
+        n_vids = len(saved.get("video_ids", []))
+        if n_chats or n_vids:
+            who = st.session_state.auth_user or "guest"
+            st.session_state.welcome_back = f"Welcome back, {who} — restored {n_chats} chat(s), {n_vids} video(s)."
     st.rerun()
+
+_welcome = st.session_state.pop("welcome_back", None)
+if _welcome:
+    st.toast(_welcome)
 
 provider, model, api_key = utils.resolve_provider()
 
@@ -533,13 +553,21 @@ if st.session_state.video_docs:
         for i, msg in enumerate(history.messages):
             with st.chat_message("user" if i % 2 == 0 else "assistant"):
                 st.markdown(msg.content)
+        if not history.messages:
+            st.caption("Try one:")
+            chip_cols = st.columns(3)
+            for c, suggestion in zip(chip_cols, ["Summarize this video", "Key takeaways", "Explain it simply"]):
+                if c.button(suggestion, use_container_width=True, key=f"chip_{suggestion}"):
+                    st.session_state.preset_q = suggestion
+                    st.rerun()
         user_input = st.chat_input("Ask about the video(s):")
-        if user_input:
-            if len(user_input) > 2000:
+        question = st.session_state.pop("preset_q", None) or user_input
+        if question:
+            if len(question) > 2000:
                 st.error("Question too long (max 2000 chars).")
             else:
                 with st.chat_message("user"):
-                    st.markdown(user_input)
+                    st.markdown(question)
                 try:
                     with st.chat_message("assistant"):
                         ph = st.empty()
@@ -547,7 +575,7 @@ if st.session_state.video_docs:
 
                         def _answer_stream():
                             for chunk in chain.stream(
-                                {"input": user_input},
+                                {"input": question},
                                 config={"configurable": {"session_id": st.session_state.active_chat}},
                             ):
                                 text = chunk.get("answer") if isinstance(chunk, dict) else None
