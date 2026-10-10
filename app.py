@@ -40,6 +40,10 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 .stTabs [data-baseweb="tab"] { font-weight: 600; }
 .stTabs [aria-selected="true"] { color: #FF0000 !important; }
 .stMetric { background: #fff5f5; border: 1px solid #ffc9c9; border-radius: 12px; padding: .5rem; }
+/* YOUBO-only chrome: hide every Streamlit-branded element */
+#MainMenu, footer, .stAppDeployButton, [data-testid="stToolbar"],
+[data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
+[data-testid="stDecoration"] { background: linear-gradient(90deg, #FF0000, #7a0000) !important; }
 div[data-testid="stChatInput"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
 div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important; }
 div[data-testid="stRadio"] div[role="radiogroup"] { gap: .4rem; }
