@@ -42,7 +42,13 @@ section[data-testid="stSidebar"] img { border-radius: 10px; }
 .stMetric { background: #fff5f5; border: 1px solid #ffc9c9; border-radius: 12px; padding: .5rem; }
 div[data-testid="stChatInput"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
 div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important; }
-div[data-testid="stRadio"][data-test-anchor="tabbar"] label { font-weight: 700; }
+div[data-testid="stRadio"] div[role="radiogroup"] { gap: .4rem; }
+div[data-testid="stRadio"] label { background: rgba(128,128,128,.12); border-radius: 999px; padding: .35rem .9rem; }
+div[data-testid="stRadio"] label:has(input:checked) { background: #FF0000 !important; }
+div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !important; }
+.hero { text-align: center; padding: 1.2rem .5rem; }
+.hero h2 { margin-bottom: .2rem; }
+.step-cards { display: flex; gap: .6rem; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -366,7 +372,8 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
     return True
 
 
-if load_btn:
+triggered = st.session_state.pop("trigger_load", False)
+if load_btn or triggered:
     if not (raw_urls or "").strip():
         st.warning("Paste a YouTube link first — the box is empty on the server. "
                    "If you can see a link, click inside the box, press space then backspace, and try Load again.")
@@ -475,12 +482,19 @@ if st.session_state.video_docs:
         st.session_state.chain_key = chain_key
     chain = st.session_state.chain
 
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Videos", len(st.session_state.video_ids))
+    m2.metric("Chunks", len(docs))
+    m3.metric("Captions", (st.session_state.video_lang or "unknown")[:14])
+    m4.metric("AI", provider.split(" (")[0][:14])
+
     # Persistent section bar: st.tabs resets to the first tab on every rerun,
     # a radio keeps the user where they were.
-    SECTIONS = ["Chat", "Summary", "Quiz", "Notes & Export", "Translate", "Guide"]
+    SECTIONS = {"Chat": "Chat", "Summary": "Summary", "Quiz": "Quiz",
+                "Notes & Export": "Notes", "Translate": "Translate", "Guide": "Guide"}
     if st.session_state.get("section") not in SECTIONS:
         st.session_state.section = "Chat"
-    section = st.radio("Section", SECTIONS, index=SECTIONS.index(st.session_state.section),
+    section = st.radio("Section", list(SECTIONS), index=list(SECTIONS).index(st.session_state.section),
                        horizontal=True, label_visibility="collapsed", key="tabbar")
     st.session_state.section = section
 
@@ -491,8 +505,9 @@ if st.session_state.video_docs:
             st.info("Generate a quiz to start answering.")
             return
         for i, q in enumerate(st.session_state.quiz_data):
-            st.markdown(f"**Q{i + 1}. {q['question']}**")
-            st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
+            with st.container(border=True):
+                st.markdown(f"**Q{i + 1}. {q['question']}**")
+                st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
             if st.session_state.quiz_done:
                 picked = st.session_state.get(f"quiz_a_{i}")
                 correct = picked == q["options"][q["answer"]]
@@ -612,8 +627,15 @@ if st.session_state.video_docs:
                 c2.info("Install fpdf2 for PDF export: pip install fpdf2")
 
         st.subheader("Key moments")
-        for m in utils.build_key_moments(docs):
-            st.markdown(f"[{int(m['start'])}s]({m['link']}) — {m['snippet']}")
+        moments = utils.build_key_moments(docs)
+        for r in range(0, len(moments), 2):
+            cols = st.columns(2)
+            for c, m in zip(cols, moments[r:r + 2]):
+                with c:
+                    with st.container(border=True):
+                        mins, secs = divmod(int(m["start"]), 60)
+                        st.link_button(f"Play from {mins}:{secs:02d}", m["link"], use_container_width=True)
+                        st.caption(m["snippet"])
 
         history = get_session_history(st.session_state.active_chat)
         chat_md = "\n\n".join(
@@ -720,4 +742,15 @@ if st.session_state.video_docs:
 
     persist_user_state()
 else:
-    st.info("Load at least one video from the sidebar to start chatting.")
+    st.markdown('<div class="hero"><h2>Turn any YouTube video into a conversation</h2>'
+                '<p>Paste a link — ask questions, get timestamped answers, quizzes, notes, translations, even a dubbed video.</p></div>',
+                unsafe_allow_html=True)
+    s1, s2, s3 = st.columns(3)
+    s1.markdown("**1. Paste**\n\nVideo, playlist, or ID — any language, captions optional.")
+    s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
+    s3.markdown("**3. Keep**\n\nExport notes, translated transcripts, dubbed MP4s.")
+    st.write("")
+    if st.button("Try a sample video", type="primary"):
+        st.session_state.raw_urls_box = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        st.session_state.trigger_load = True
+        st.rerun()
