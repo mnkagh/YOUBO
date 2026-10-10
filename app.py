@@ -64,6 +64,11 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .hero { text-align: center; padding: 1.2rem .5rem; }
 .hero h2 { margin-bottom: .2rem; }
 .step-cards { display: flex; gap: .6rem; }
+.side-logo { display: flex; align-items: center; gap: .55rem; padding: .4rem .2rem .8rem .2rem; }
+.side-logo .play { background: #FF0000; color: #fff; font-size: 1rem; width: 2rem; height: 2rem;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: .55rem;
+  box-shadow: 0 4px 14px rgba(255,0,0,.45); }
+.side-logo .word { font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: .06em; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -276,19 +281,34 @@ def get_session_history(session: str) -> BaseChatMessageHistory:
 
 
 with st.sidebar:
+    st.markdown('<div class="side-logo"><span class="play">▶</span><span class="word">YOUBO</span></div>',
+                unsafe_allow_html=True)
+    if st.button("Home", use_container_width=True, key="logo_home"):
+        st.session_state.section = "Chat"
+        st.rerun()
     dark = st.toggle("Dark mode", value=st.session_state.dark_mode)
     if dark != st.session_state.dark_mode:
         st.session_state.dark_mode = dark
         persist_user_state()
         st.rerun()
+    if not (st.session_state.auth_user or st.session_state.guest):
+        st.caption("Login or continue as guest to unlock videos, chats and tools.")
+        st.stop()
     if st.session_state.auth_user:
         st.caption(f"Logged in as **{st.session_state.auth_user}** — chats auto-save.")
         if st.button("Logout"):
             persist_user_state()
             st.session_state.auth_user = None
             st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
             for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
+                      "retriever_resources", "retriever_cache_key", "chain", "chain_key",
+                      "section", "transcript_tr", "summary", "quiz_done"):
                 st.session_state.pop(k, None)
             st.rerun()
     else:
