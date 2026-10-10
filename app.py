@@ -230,7 +230,8 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                 st.success("Account created — you're logged in.")
                 st.rerun()
     with t_guest:
-        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")        if st.button("Continue as guest", type="primary"):
+        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
+        if st.button("Continue as guest", type="primary"):
             import secrets as _secrets
             st.session_state.guest = True
             st.session_state.guest_sid = _secrets.token_hex(8)
