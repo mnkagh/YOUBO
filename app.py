@@ -26,8 +26,10 @@ THEME_CSS = """
 html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Poppins', sans-serif; }
 footer { visibility: hidden !important; }
 #MainMenu { visibility: hidden !important; }
-[data-testid="stToolbar"] { visibility: hidden !important; }
 [data-testid="stDecoration"] { display: none !important; }
+textarea::placeholder, input::placeholder { opacity: 1 !important; }
+[data-testid="stSidebar"] textarea::placeholder, [data-testid="stSidebar"] input::placeholder { color: #555555 !important; }
+div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important; }
 .block-container { max-width: 1100px; }
 .brandbar { background: linear-gradient(90deg, #FF0000 0%, #7a0d0d 60%, #1a0505 100%);
   border-radius: 16px; padding: 1.1rem 1.4rem; color: #fff !important; margin-bottom: 1rem;
@@ -64,11 +66,12 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .hero { text-align: center; padding: 1.2rem .5rem; }
 .hero h2 { margin-bottom: .2rem; }
 .step-cards { display: flex; gap: .6rem; }
-.side-logo { display: flex; align-items: center; gap: .55rem; padding: .4rem .2rem .8rem .2rem; }
-.side-logo .play { background: #FF0000; color: #fff; font-size: 1rem; width: 2rem; height: 2rem;
-  display: inline-flex; align-items: center; justify-content: center; border-radius: .55rem;
-  box-shadow: 0 4px 14px rgba(255,0,0,.45); }
-.side-logo .word { font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1.35rem; letter-spacing: .06em; }
+div:has(> div > .logo-anchor) + div button {
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  justify-content: flex-start !important; padding: .2rem 0 !important; }
+div:has(> div > .logo-anchor) + div button:hover { border: none !important; box-shadow: none !important; }
+div:has(> div > .logo-anchor) + div button p { font-size: 1.4rem !important; font-weight: 700 !important; letter-spacing: .05em !important; }
+div:has(> div > .logo-anchor) + div button:hover p { color: #FF0000 !important; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -111,8 +114,7 @@ hr { border-color: #2a2a32 !important; }
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 
-st.markdown('<div class="brandbar"><h1>YOUBO</h1><p>Chat with YouTube videos — answers with timestamped proof.</p></div>',
-            unsafe_allow_html=True)
+st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
 
 
 def state_owner() -> str | None:
@@ -280,16 +282,20 @@ def get_session_history(session: str) -> BaseChatMessageHistory:
     return st.session_state.store[session]
 
 
+# Sample must be assigned BEFORE the sidebar widgets are created.
+if st.session_state.pop("load_sample", False):
+    st.session_state.raw_urls_box = "https://www.youtube.com/watch?v=YQHsXMglC9A"
+    st.session_state.trigger_load = True
+
 with st.sidebar:
-    st.markdown('<div class="side-logo"><span class="play">▶</span><span class="word">YOUBO</span></div>',
-                unsafe_allow_html=True)
-    if st.button("Home", use_container_width=True, key="logo_home"):
-        st.session_state.section = "Chat"
-        st.rerun()
     dark = st.toggle("Dark mode", value=st.session_state.dark_mode)
     if dark != st.session_state.dark_mode:
         st.session_state.dark_mode = dark
         persist_user_state()
+        st.rerun()
+    st.markdown('<div class="logo-anchor"></div>', unsafe_allow_html=True)
+    if st.button("▶ YOUBO", key="logo_home"):
+        st.session_state.section = "Chat"
         st.rerun()
     if not (st.session_state.auth_user or st.session_state.guest):
         st.caption("Login or continue as guest to unlock videos, chats and tools.")
@@ -540,7 +546,14 @@ if st.session_state.video_docs:
         st.session_state.section = "Chat"
     section = st.radio("Section", list(SECTIONS), index=list(SECTIONS).index(st.session_state.section),
                        horizontal=True, label_visibility="collapsed", key="tabbar")
-    st.session_state.section = section
+    if section != st.session_state.get("section"):
+        st.session_state.section = section
+        st.session_state.section_just_changed = True
+    if st.session_state.pop("section_just_changed", False) and st.session_state.section == "Chat":
+        st.html(
+            "<script>(function(){var b=document.querySelector('[data-testid=\"stSidebarCollapseButton\"]');"
+            "if(b){b.click();}})();</script>",
+        )
 
     @st.fragment
     def quiz_fragment():
@@ -702,7 +715,12 @@ if st.session_state.video_docs:
         st.caption("Get the video in your language: full timestamped transcript, summary, or notes.")
         target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
         n_calls = (len(docs) + 3) // 4
-        if st.button(f"Translate full transcript ({n_calls} short calls)", type="primary"):
+        total_secs = max([(st.session_state.video_meta.get(v, {}).get("duration") or 0)
+                          for v in st.session_state.video_ids] + [0])
+        if total_secs > utils.MAX_DUB_SECONDS:
+            st.warning(f"Full-transcript translation is capped at {utils.MAX_DUB_SECONDS // 60} min videos "
+                       f"(this one is ~{int(total_secs // 60)} min). Translate the summary or notes instead.")
+        elif st.button(f"Translate full transcript ({n_calls} short calls)", type="primary"):
             try:
                 bar = st.progress(0.0, text="Translating...")
                 blocks = utils.translate_transcript(
@@ -802,7 +820,7 @@ else:
     s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
     s3.markdown("**3. Keep**\n\nExport notes, translated transcripts, dubbed MP4s.")
     st.write("")
-    if st.button("Try a sample video", type="primary"):
-        st.session_state.raw_urls_box = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        st.session_state.trigger_load = True
+    st.caption("No link handy? Load this TED talk to see YOUBO in action: 14 min, captioned, quiz-ready.")
+    if st.button("Try a sample talk", type="primary"):
+        st.session_state.load_sample = True
         st.rerun()
