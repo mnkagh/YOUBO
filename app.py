@@ -127,14 +127,7 @@ if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 
 st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
-_hb1, _hb2 = st.columns([6, 1])
-with _hb1:
-    st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
-with _hb2:
-    st.write("")
-    if st.button("Home", key="main_home", use_container_width=True):
-        st.session_state.section = "Chat"
-        st.rerun()
+st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
 
 
 def state_owner() -> str | None:
@@ -309,9 +302,10 @@ if st.session_state.pop("load_sample", False):
 
 with st.sidebar:
     st.markdown('<div class="logo-anchor"></div>', unsafe_allow_html=True)
-    if st.button("▶ YOUBO", key="logo_home"):
-        st.session_state.section = "Chat"
-        st.rerun()
+    if st.session_state.get("section", "Chat") != "Chat":
+        if st.button("▶ YOUBO", key="logo_home"):
+            st.session_state.section = "Chat"
+            st.rerun()
     if not (st.session_state.auth_user or st.session_state.guest):
         st.caption("Login or continue as guest to unlock videos, chats and tools.")
         st.stop()
@@ -847,6 +841,26 @@ else:
     s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
     s3.markdown("**3. Keep**\n\nExport notes, translated transcripts, dubbed MP4s.")
     st.write("")
+    if not st.session_state.auth_user:
+        st.caption("Browsing as guest — your work is saved in this browser only.")
+        g1, g2 = st.columns(2)
+        if g1.button("Login", use_container_width=True, key="hero_login"):
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.rerun()
+        if g2.button("Create account", use_container_width=True, key="hero_signup", type="primary"):
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.rerun()
+        st.write("")
     st.caption("No link handy? Load this TED talk to see YOUBO in action: 14 min, captioned, quiz-ready.")
     if st.button("Try a sample talk", type="primary"):
         st.session_state.load_sample = True
