@@ -215,6 +215,30 @@ if "auth_user" not in st.session_state:
             st.session_state.restore_pending = "_guest_" + token
 
 if st.session_state.auth_user is None and not st.session_state.guest:
+    st.markdown(
+        '<div class="mode-card"><span class="mode-pill">TRY IT FIRST</span>'
+        '<div class="mode-sub">Paste a YouTube link now — pick a mode below and the video '
+        'loads straight into your session. Guests keep it in this browser; accounts keep it everywhere.</div></div>',
+        unsafe_allow_html=True)
+    st.text_area(" ", key="gate_urls_box", height=80, label_visibility="collapsed",
+                 placeholder="https://www.youtube.com/watch?v=…",
+                 value=st.session_state.get("raw_urls_box", ""))
+
+    def _gate_load():
+        val = (st.session_state.get("gate_urls_box") or "").strip()
+        if not val:
+            st.session_state.gate_warn = True
+            return
+        st.session_state.raw_urls_box = val   # safe: sidebar widget not instantiated on gate runs
+        st.session_state.hero_urls_box = val
+        st.session_state.pending_load = val
+
+    st.button("Load video ▶", type="primary", use_container_width=True, on_click=_gate_load)
+    if st.session_state.pop("gate_warn", False):
+        st.warning("Paste a YouTube link first — the box is empty.")
+    if st.session_state.get("pending_load"):
+        st.info("Link saved — pick Login, Sign up or Guest mode below and it loads right away.")
+    st.write("")
     t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest mode"])
     with t_login:
         u = st.text_input("Username", key="li_user")
@@ -526,7 +550,11 @@ if st.session_state.video_docs:
         except Exception as e:
             utils.log_error("index build", e)
             st.error(f"Could not build the search index: {e}")
-            st.stop()
+    st.stop()
+
+# Gate-pasted link: once a mode is chosen, load it into that session.
+if st.session_state.pop("pending_load", None):
+    st.session_state.trigger_load = True
     vectorstore, splits, bm25 = st.session_state.retriever_resources
     base_retriever = utils.HybridRetriever(vectorstore=vectorstore, splits=splits, bm25=bm25, k=4)
     retriever = utils.LinkAttachingRetriever(base=base_retriever)
@@ -996,6 +1024,27 @@ else:
     s1.markdown("**1. Paste**\n\nVideo, playlist, or ID — any language, captions optional.")
     s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
     s3.markdown("**3. Keep**\n\nStudy packs: notes, flashcards, bilingual subs, dubbed MP4s.")
+    st.write("")
+    st.markdown(
+        '<div class="mode-card"><span class="mode-pill">PASTE A LINK</span>'
+        '<div class="mode-sub">YouTube video, playlist, or bare video ID — any language, captions optional. '
+        'Several links work too, one per line.</div></div>',
+        unsafe_allow_html=True)
+    st.text_area(" ", key="hero_urls_box", height=80, label_visibility="collapsed",
+                 placeholder="https://www.youtube.com/watch?v=…",
+                 value=st.session_state.get("raw_urls_box", ""))
+
+    def _hero_load():
+        val = (st.session_state.get("hero_urls_box") or "").strip()
+        if not val:
+            st.session_state.hero_warn = True
+            return
+        st.session_state.raw_urls_box = val   # set BEFORE sidebar widget instantiates (callback)
+        st.session_state.trigger_load = True
+
+    st.button("Load video ▶", type="primary", use_container_width=True, on_click=_hero_load)
+    if st.session_state.pop("hero_warn", False):
+        st.warning("Paste a YouTube link first — the box is empty.")
     st.write("")
     if not st.session_state.auth_user:
         st.markdown(
