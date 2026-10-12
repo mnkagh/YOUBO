@@ -558,6 +558,7 @@ def translate_transcript(llm, docs: list, target_lang: str, batch_chunks: int = 
         blocks.append({
             "start": batch[0].metadata.get("start", 0),
             "link": batch[0].metadata.get("link", ""),
+            "video_id": batch[0].metadata.get("video_id", ""),
             "text": tr,
         })
         if progress_cb:
@@ -813,3 +814,135 @@ def notes_to_pdf(notes_md: str) -> bytes:
         safe = line.encode("latin-1", "replace").decode("latin-1")
         pdf.multi_cell(0, 7, safe)
     return bytes(pdf.output())
+
+
+def _srt_ts(t: float) -> str:
+    ms = int(round((t % 1) * 1000))
+    s = int(t)
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+
+def snippets_to_srt(snippets: list[dict]) -> str:
+    """Caption snippets -> standard SRT subtitle file (text)."""
+    lines = []
+    n = 0
+    for i, s in enumerate(snippets):
+        text = (s.get("text") or "").replace("\n", " ").strip()
+        if not text:
+            continue
+        start = float(s.get("start", 0))
+        end = start + max(float(s.get("duration") or 1), 0.5)
+        if i + 1 < len(snippets):
+            nxt = float(snippets[i + 1].get("start", end))
+            if nxt > start:
+                end = min(end, nxt)
+        n += 1
+        lines += [str(n), f"{_srt_ts(start)} --> {_srt_ts(max(end, start + 0.3))}", text, ""]
+    return "\n".join(lines)
+
+
+def blocks_to_bilingual_srt(blocks: list, snippets_by_vid: dict, target_lang: str) -> str:
+    """One SRT with two lines per cue: original text, then the translation.
+    Cue timing follows the original captions inside each translated block."""
+    entries = []
+    for bi, b in enumerate(blocks):
+        vid = b.get("video_id", "")
+        start = float(b.get("start", 0))
+        nxt = float(blocks[bi + 1]["start"]) if (bi + 1 < len(blocks)
+                                                 and blocks[bi + 1].get("video_id") == vid) else start + 12
+        snips = [s for s in snippets_by_vid.get(vid, []) if start - 0.05 <= float(s.get("start", 0)) < nxt]
+        orig = " ".join((s.get("text") or "") for s in snips).replace("\n", " ").strip()
+        tr = (b.get("text") or "").replace("\n", " ").strip()
+        if not tr:
+            continue
+        entries.append((start, max(nxt, start + 2), orig, tr))
+    lines = []
+    for i, (start, end, orig, tr) in enumerate(entries, 1):
+        lines += [str(i), f"{_srt_ts(start)} --> {_srt_ts(end)}", orig or "—", tr, ""]
+    return "\n".join(lines)
+
+
+def quiz_to_md(quiz_data: list) -> str:
+    parts = ["# YOUBO quiz\n"]
+    for i, q in enumerate(quiz_data, 1):
+        parts.append(f"## Q{i}. {q['question']}\n")
+        for oi, opt in enumerate(q["options"]):
+            mark = " ✅" if oi == q["answer"] else ""
+            parts.append(f"- {chr(65 + oi)}) {opt}{mark}")
+        if q.get("explanation"):
+            parts.append(f"\n*{q['explanation']}*\n")
+    return "\n".join(parts)
+
+
+def quiz_to_anki_tsv(quiz_data: list, link: str = "") -> str:
+    """Anki-importable flashcards: tab-separated, front/back, with a
+    jump-to-timestamp link on the back of every card."""
+    hdr = "#separator:tab\n#html:true\n#deck:YOUBO\n"
+    rows = []
+    for q in quiz_data:
+        opts = "".join(f"{chr(65 + oi)}) {o}<br>" for oi, o in enumerate(q["options"]))
+        back = (f"{chr(65 + q['answer'])}) {q['options'][q['answer']]}<br>"
+                f"<i>{q.get('explanation', '')}</i>")
+        if link:
+            back += f'<br><a href="{link}">▶ watch the source</a>'
+        front = q["question"].replace("\n", " ") + "<br>" + opts
+        rows.append(front.replace("\t", " ") + "\t" + back.replace("\t", " "))
+    return hdr + "\n".join(rows) + "\n"
+
+
+def build_study_pack(*, video_ids: list, video_meta: dict, snippets_by_vid: dict,
+                     summary: str | None, notes: str | None, quiz_data: list | None,
+                     transcript_tr: dict | None, chat_md: str | None,
+                     dubbed_mp4: bytes | None, dubbed_lang: str | None) -> bytes:
+    """One ZIP with everything learned from the video(s): notes, summary,
+    quiz + Anki flashcards, original & translated subtitles, chat history,
+    and the dubbed MP4 when it exists. This is the 'turn a video into a
+    course' export nobody else offers."""
+    import io
+    import json
+    import zipfile
+
+    buf = io.BytesIO()
+    z = zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED)
+    included = ["videos.json — what this pack covers"]
+    z.writestr("videos.json", json.dumps(
+        [{"id": v, "title": video_meta.get(v, {}).get("title", v),
+          "url": f"https://www.youtube.com/watch?v={v}"} for v in video_ids],
+        indent=2, ensure_ascii=False))
+    for vid in video_ids:
+        snips = snippets_by_vid.get(vid)
+        if snips:
+            z.writestr(f"transcript_{vid}.srt", snippets_to_srt(snips))
+            included.append(f"transcript_{vid}.srt — original subtitles")
+    if summary:
+        z.writestr("summary.md", summary)
+        included.append("summary.md")
+    if notes:
+        z.writestr("notes.md", notes)
+        included.append("notes.md")
+    if quiz_data:
+        z.writestr("quiz.md", quiz_to_md(quiz_data))
+        link = f"https://www.youtube.com/watch?v={video_ids[0]}" if video_ids else ""
+        z.writestr("flashcards_anki.tsv", quiz_to_anki_tsv(quiz_data, link))
+        included += ["quiz.md", "flashcards_anki.tsv — import into Anki"]
+    if transcript_tr and transcript_tr.get("blocks"):
+        lang = transcript_tr.get("lang", "translated")
+        z.writestr(f"transcript_{lang}.md",
+                   transcript_blocks_to_md(transcript_tr["blocks"], lang))
+        z.writestr(f"bilingual_{lang}.srt",
+                   blocks_to_bilingual_srt(transcript_tr["blocks"], snippets_by_vid, lang))
+        included += [f"transcript_{lang}.md", f"bilingual_{lang}.srt — original + {lang}"]
+    if chat_md:
+        z.writestr("chat_history.md", chat_md)
+        included.append("chat_history.md")
+    if dubbed_mp4:
+        z.writestr(f"dubbed_{dubbed_lang or 'video'}.mp4", dubbed_mp4)
+        included.append(f"dubbed_{dubbed_lang or 'video'}.mp4")
+    z.writestr("README.txt",
+               "YOUBO study pack\n================\n\n" + "\n".join(f"- {x}" for x in included) +
+               "\n\nImport flashcards_anki.tsv into Anki (File > Import).\n"
+               "Subtitle files (.srt) work in VLC, mpv, YouTube, most players.\n")
+    z.close()
+    return buf.getvalue()

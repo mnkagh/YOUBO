@@ -1,10 +1,33 @@
 # YOUBO
 
-Chat with YouTube videos.
+Chat with YouTube videos — then keep what you learned.
+
+## Why YOUBO (the honest battle card)
+
+Chatting with a video isn't new. Glasp, Eightify and NoteGPT do it for millions of users; a dozen GitHub repos do it for free. **Nobody else turns a video into a study kit.**
+
+| Capability | Glasp / Eightify / NoteGPT | Typical GitHub clone | **YOUBO** |
+|---|---|---|---|
+| Chat with timestamped answers | ✅ | ✅ | ✅ |
+| Summary / transcript export | ✅ | ✅ | ✅ |
+| Interactive quiz + score | ❌ | rarely | ✅ |
+| Anki-ready flashcards w/ video links | ❌ | ❌ | ✅ |
+| Bilingual subtitles (.srt) | ❌ | ❌ | ✅ |
+| **Dub the whole video into another language (MP4)** | ❌ | ❌ | ✅ |
+| Playlist → course (per-lecture quizzes, progress) | ❌ | ❌ | ✅ |
+| Proof mode (raw transcript behind every answer) | ❌ | ❌ | ✅ |
+| One-click study-pack ZIP (notes+quiz+subs+dub) | ❌ | ❌ | ✅ |
+| Runs 100% keyless/free-tier, self-hosted | ❌ | sometimes | ✅ |
+| Guest mode + accounts, no signup wall | ❌ | ❌ | ✅ |
 
 ## Features
 
 - **Timestamped answers** — every answer links back to the exact moment in the video (`&t=` seconds)
+- **Proof mode** — every answer expands to the exact transcript chunks it was built from; no hallucination takes a vacation
+- **Study pack ZIP** — one click bundles notes, summary, quiz, Anki flashcards, original & bilingual `.srt` subtitles, chat history, and the dubbed MP4
+- **Dubbing** — the same video, speaking your language: AI voiceover muxed onto the original picture (≤20 min videos)
+- **Bilingual subtitles** — one `.srt` with the original line and the translation stacked, timed to the captions
+- **Course mode** — load a playlist: lectures laid out with per-lecture quizzes, summaries and completion tracking
 - **Hybrid retrieval** — Qdrant vector search (dense) + BM25 keyword search, merged and deduplicated
 - **Chat history** — follow-up questions work via history-aware retrieval
 - **Multi-video support** — chat across several videos at once
@@ -14,6 +37,7 @@ Chat with YouTube videos.
 - **Quiz generator** — auto-creates multiple-choice quizzes from a video with answers + explanations
 - **Study notes export** — structured markdown notes, downloadable as `.md` or `.pdf`
 - **Key moments timeline** — evenly-spaced timestamped highlights with links
+- **Guest mode + accounts** — guests work instantly, state survives refresh; accounts sync via local login
 - **Video metadata** — titles, channels, durations shown in the sidebar
 - **No-captions fallback** — caption-less videos are transcribed automatically (on-device where allowed, else free Hugging Face cloud ASR with `HF_TOKEN`)
 - **Chat export** — download the full conversation as markdown

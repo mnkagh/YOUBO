@@ -8,6 +8,7 @@ from langchain_classic.chains import create_history_aware_retriever, create_retr
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
@@ -296,7 +297,7 @@ for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
                      ("video_docs", []), ("video_ids", []), ("video_meta", {}),
                      ("video_lang", ""), ("notes", None), ("quiz", None),
                      ("quiz_data", None), ("quiz_done", False),
-                     ("transcript_tr", None)]:
+                     ("transcript_tr", None), ("snippets_map", {}), ("proofs", {})]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -427,12 +428,14 @@ with st.sidebar:
 def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos...") -> bool:
     """Fetch transcripts + build index. Returns True on success."""
     all_docs, meta, langs = [], {}, []
+    snippets_map: dict = {}
     with st.status(label, expanded=True) as status:
         st.write("Fetching transcripts...")
         for vid in video_ids:
             try:
                 with utils.Timer(f"transcript {vid}"):
                     snippets, lang_name = utils.fetch_transcript(vid, lang_code)
+                    snippets_map[vid] = snippets
                     all_docs.extend(utils.transcript_to_docs(vid, snippets))
                 langs.append(lang_name)
                 meta[vid] = utils.get_video_metadata(vid)
@@ -441,6 +444,7 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
                 st.write(f"No captions for {vid} — transcribing audio locally (slower, one-time)...")
                 try:
                     snippets, lang_name = utils.transcribe_audio(vid)
+                    snippets_map[vid] = snippets
                     all_docs.extend(utils.transcript_to_docs(vid, snippets))
                     langs.append(lang_name)
                     meta[vid] = utils.get_video_metadata(vid)
@@ -466,6 +470,7 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
     st.session_state.video_ids = video_ids
     st.session_state.video_meta = meta
     st.session_state.video_lang = ", ".join(sorted(set(langs))) or "unknown"
+    st.session_state.snippets_map = snippets_map
     st.success(f"Loaded {len(video_ids)} video(s), {len(all_docs)} chunks (captions: {st.session_state.video_lang}).")
     persist_user_state()
     return True
@@ -590,7 +595,8 @@ if st.session_state.video_docs:
     # Persistent section bar: st.tabs resets to the first tab on every rerun,
     # a radio keeps the user where they were.
     SECTIONS = {"Chat": "Chat", "Summary": "Summary", "Quiz": "Quiz",
-                "Notes & Export": "Notes", "Translate": "Translate", "Guide": "Guide"}
+                "Notes & Export": "Notes", "Course": "Course",
+                "Translate": "Translate", "Guide": "Guide"}
     if st.session_state.get("section") not in SECTIONS:
         st.session_state.section = "Chat"
     section = st.radio("Section", list(SECTIONS), index=list(SECTIONS).index(st.session_state.section),
@@ -630,11 +636,30 @@ if st.session_state.video_docs:
             )
             c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
 
+    class _SourceCapture(BaseCallbackHandler):
+        """Grabs the exact chunks the retriever used, for Proof mode."""
+
+        def __init__(self):
+            self.docs: list = []
+
+        def on_retriever_end(self, documents, **kwargs):
+            self.docs = list(documents)
+
+    def _render_proof(sources: list) -> None:
+        with st.expander("Proof — the raw transcript this answer was built from"):
+            for s in sources:
+                mins, secs = divmod(int(s["start"]), 60)
+                st.markdown(f"**{s['title']}** · [{mins}:{secs:02d}]({s['link']})")
+                st.markdown(f"> {s['text'][:400]}{'…' if len(s['text']) > 400 else ''}")
+
     if section == "Chat":
         history = get_session_history(st.session_state.active_chat)
+        proofs_for_chat = st.session_state.proofs.get(st.session_state.active_chat, {})
         for i, msg in enumerate(history.messages):
             with st.chat_message("user" if i % 2 == 0 else "assistant"):
                 st.markdown(msg.content)
+                if i % 2 == 1 and proofs_for_chat.get(i // 2):
+                    _render_proof(proofs_for_chat[i // 2])
         if not history.messages:
             st.caption("Try one:")
             chip_cols = st.columns(3)
@@ -651,6 +676,8 @@ if st.session_state.video_docs:
                 with st.chat_message("user"):
                     st.markdown(question)
                 try:
+                    capture = _SourceCapture()
+                    pair_idx = len(history.messages) // 2
                     with st.chat_message("assistant"):
                         ph = st.empty()
                         buf: list = []
@@ -658,7 +685,8 @@ if st.session_state.video_docs:
                         def _answer_stream():
                             for chunk in chain.stream(
                                 {"input": question},
-                                config={"configurable": {"session_id": st.session_state.active_chat}},
+                                config={"configurable": {"session_id": st.session_state.active_chat},
+                                        "callbacks": [capture]},
                             ):
                                 text = chunk.get("answer") if isinstance(chunk, dict) else None
                                 if isinstance(text, str) and text:
@@ -667,6 +695,16 @@ if st.session_state.video_docs:
                         for _piece in _answer_stream():
                             ph.markdown("".join(buf) + "▌")
                         ph.markdown("".join(buf))
+                        if capture.docs:
+                            sources = [{
+                                "title": st.session_state.video_meta.get(d.metadata.get("video_id", ""), {})
+                                            .get("title", d.metadata.get("video_id", "")),
+                                "start": d.metadata.get("start", 0),
+                                "link": d.metadata.get("link", ""),
+                                "text": d.page_content.split("\n[Source]")[0].strip(),
+                            } for d in capture.docs]
+                            st.session_state.proofs.setdefault(st.session_state.active_chat, {})[pair_idx] = sources
+                            _render_proof(sources)
                     persist_user_state()
                 except Exception as e:
                     utils.log_error("chat answer", e)
@@ -760,6 +798,33 @@ if st.session_state.video_docs:
             st.download_button("Download chat history (.md)", chat_md,
                                file_name="chat_history.md", mime="text/markdown")
 
+        st.divider()
+        st.subheader("Study pack")
+        st.caption("Everything from this session in one ZIP — notes, summary, quiz + "
+                   "Anki-importable flashcards, original & translated subtitles (.srt), "
+                   "bilingual subtitles, chat history, and the dubbed MP4 if you made one.")
+        smap = st.session_state.get("snippets_map", {})
+        if len(st.session_state.video_ids) == 1 and smap.get(st.session_state.video_ids[0]):
+            vid0 = st.session_state.video_ids[0]
+            st.download_button("Download original subtitles (.srt)",
+                               utils.snippets_to_srt(smap[vid0]),
+                               file_name=f"transcript_{vid0}.srt", mime="text/plain")
+        pack = utils.build_study_pack(
+            video_ids=st.session_state.video_ids,
+            video_meta=st.session_state.video_meta,
+            snippets_by_vid=smap,
+            summary=st.session_state.get("summary"),
+            notes=st.session_state.get("notes"),
+            quiz_data=st.session_state.get("quiz_data"),
+            transcript_tr=st.session_state.get("transcript_tr"),
+            chat_md=chat_md or None,
+            dubbed_mp4=st.session_state.get("dubbed_mp4"),
+            dubbed_lang=st.session_state.get("dubbed_lang"),
+        )
+        st.download_button("Download study pack (.zip)", pack,
+                           file_name="youbo_study_pack.zip", mime="application/zip",
+                           type="primary")
+
     if section == "Translate":
         st.caption("Get the video in your language: full timestamped transcript, summary, or notes.")
         target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
@@ -790,6 +855,11 @@ if st.session_state.video_docs:
                 "Download translated transcript (.md)",
                 utils.transcript_blocks_to_md(tr["blocks"], target),
                 file_name=f"transcript_{target}.md", mime="text/markdown")
+            st.download_button(
+                f"Download bilingual subtitles (.srt) — original + {target}",
+                utils.blocks_to_bilingual_srt(tr["blocks"],
+                                              st.session_state.get("snippets_map", {}), target),
+                file_name=f"bilingual_{target}.srt", mime="text/plain")
         elif tr:
             st.info(f"A {tr['lang']} translation exists — pick {tr['lang']} above to view it, or re-translate.")
         st.divider()
@@ -812,9 +882,11 @@ if st.session_state.video_docs:
                 utils.log_error("dub video", e)
                 st.error(f"Dubbing failed: {e}")
         if st.session_state.get("dubbed_mp4") and st.session_state.get("dubbed_lang") == target:
-            st.video(st.session_state.dubbed_mp4, format="video/mp4")
-            st.download_button("Download dubbed video (.mp4)", st.session_state.dubbed_mp4,
+            st.video(st.session_state.get("dubbed_mp4"), format="video/mp4")
+            st.download_button("Download dubbed video (.mp4)", st.session_state.get("dubbed_mp4"),
                                file_name=f"dubbed_{target}.mp4", mime="video/mp4")
+            st.caption("Tip: translate the full transcript above to also get bilingual "
+                       "subtitles (.srt) that pair the original words with this voiceover.")
         st.divider()
         c1, c2 = st.columns(2)
         if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
@@ -856,6 +928,62 @@ if st.session_state.video_docs:
             st.download_button("Download translation (.md)", st.session_state.notes_tr,
                                file_name=f"notes_{target}.md", mime="text/markdown")
 
+    if section == "Course":
+        vids = st.session_state.video_ids
+        n_done = sum(1 for v in vids if st.session_state.get(f"cdone_{v}"))
+        if len(vids) <= 1:
+            st.info("Load a playlist or several videos to build a course — YOUBO lays them out as "
+                    "lectures with per-lecture quizzes, summaries and progress tracking. "
+                    "Chat already searches across everything loaded.")
+        if len(vids) > 1:
+            m1, m2 = st.columns(2)
+            m1.metric("Lectures", len(vids))
+            m2.metric("Completed", f"{n_done}/{len(vids)}")
+        st.caption("Drill into one lecture, or ask across the whole course in Chat.")
+        for n, vid in enumerate(vids, 1):
+            meta = st.session_state.video_meta.get(vid, {})
+            lecture_docs = [d for d in docs if d.metadata.get("video_id") == vid]
+            with st.container(border=True):
+                lc1, lc2 = st.columns([1, 3])
+                with lc1:
+                    if meta.get("thumbnail"):
+                        st.image(meta["thumbnail"], use_container_width=True)
+                with lc2:
+                    done = st.checkbox("Completed", value=bool(st.session_state.get(f"cdone_{vid}")),
+                                       key=f"cdone_{vid}")
+                    st.markdown(f"**{n}. {meta.get('title', vid)}**")
+                    dur = meta.get("duration") or 0
+                    st.caption(f"{meta.get('uploader', '')} · {dur // 60}m {dur % 60}s · "
+                               f"{len(lecture_docs)} chunks")
+                    ab1, ab2 = st.columns(2)
+                    if ab1.button("Quiz me on this", key=f"cquiz_{vid}", use_container_width=True):
+                        try:
+                            with st.spinner(f"Building quiz for lecture {n}..."):
+                                st.session_state.quiz_data = utils.build_quiz_data(
+                                    llm, "\n".join(d.page_content for d in lecture_docs),
+                                    main_type, n=5)
+                            st.session_state.quiz_done = False
+                            st.session_state.section = "Quiz"
+                            st.rerun()
+                        except Exception as e:
+                            utils.log_error(f"course quiz {vid}", e)
+                            st.error("Quiz failed — see Diagnostics.")
+                    if ab2.button("Summarize this", key=f"csum_{vid}", use_container_width=True):
+                        try:
+                            ph = st.empty()
+                            buf: list = []
+                            prompt = utils.summary_prompt(
+                                "\n".join(d.page_content for d in lecture_docs), "Short", main_type)
+                            for tok in utils.stream_answer(llm, prompt):
+                                buf.append(tok)
+                                ph.markdown("".join(buf) + "▌")
+                            st.session_state.summary = "".join(buf)
+                            persist_user_state()
+                            st.success("Summary ready — open the Summary section to read/download it.")
+                        except Exception as e:
+                            utils.log_error(f"course summary {vid}", e)
+                            st.error("Summary failed — see Diagnostics.")
+
     if section == "Guide":
         st.markdown(utils.GUIDE_MD)
 
@@ -867,7 +995,7 @@ else:
     s1, s2, s3 = st.columns(3)
     s1.markdown("**1. Paste**\n\nVideo, playlist, or ID — any language, captions optional.")
     s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
-    s3.markdown("**3. Keep**\n\nExport notes, translated transcripts, dubbed MP4s.")
+    s3.markdown("**3. Keep**\n\nStudy packs: notes, flashcards, bilingual subs, dubbed MP4s.")
     st.write("")
     if not st.session_state.auth_user:
         st.markdown(
