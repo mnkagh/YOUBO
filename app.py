@@ -67,8 +67,11 @@ div[data-testid="stRadio"] div[role="radiogroup"] { gap: .4rem; }
 div[data-testid="stRadio"] label { background: rgba(128,128,128,.12); border-radius: 999px; padding: .35rem .9rem; }
 div[data-testid="stRadio"] label:has(input:checked) { background: #FF0000 !important; }
 div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !important; }
-.hero { text-align: center; padding: 1.2rem .5rem; }
-.hero h2 { margin-bottom: .2rem; }
+.hero { text-align: center; padding: .6rem .5rem .2rem; }
+.hero h2 { margin: 0 0 .25rem 0; font-size: 2rem; font-weight: 700; letter-spacing: -.01em; border: none !important; }
+.feature-strip { color: #9a9aa5 !important; font-size: .95rem !important; margin: 0 !important; }
+.hero-bar textarea { border-radius: 14px !important; min-height: 44px !important; }
+.center-cap { text-align: center; color: #9a9aa5; font-size: .85rem; margin: .15rem 0 0 0; }
 .step-cards { display: flex; gap: .6rem; }
 div:has(> div > .logo-anchor) + div button {
   background: transparent !important; border: none !important; box-shadow: none !important;
@@ -1017,22 +1020,11 @@ if st.session_state.pop("pending_load", None):
 
     persist_user_state()
 else:
-    st.markdown('<div class="hero"><h2>Turn any YouTube video into a conversation</h2>'
-                '<p>Paste a link — ask questions, get timestamped answers, quizzes, notes, translations, even a dubbed video.</p></div>',
-                unsafe_allow_html=True)
-    s1, s2, s3 = st.columns(3)
-    s1.markdown("**1. Paste**\n\nVideo, playlist, or ID — any language, captions optional.")
-    s2.markdown("**2. Ask**\n\nChat with citations, summaries, quizzes, key moments.")
-    s3.markdown("**3. Keep**\n\nStudy packs: notes, flashcards, bilingual subs, dubbed MP4s.")
-    st.write("")
     st.markdown(
-        '<div class="mode-card"><span class="mode-pill">PASTE A LINK</span>'
-        '<div class="mode-sub">YouTube video, playlist, or bare video ID — any language, captions optional. '
-        'Several links work too, one per line.</div></div>',
+        '<div class="hero"><h2>Turn any YouTube video into a conversation</h2>'
+        '<p class="feature-strip">Chat with citations · Quizzes · Study notes · Translation '
+        '· Video dubbing · Study packs</p></div>',
         unsafe_allow_html=True)
-    st.text_area(" ", key="hero_urls_box", height=80, label_visibility="collapsed",
-                 placeholder="https://www.youtube.com/watch?v=…",
-                 value=st.session_state.get("raw_urls_box", ""))
 
     def _hero_load():
         val = (st.session_state.get("hero_urls_box") or "").strip()
@@ -1042,48 +1034,48 @@ else:
         st.session_state.raw_urls_box = val   # set BEFORE sidebar widget instantiates (callback)
         st.session_state.trigger_load = True
 
-    st.button("Load video ▶", type="primary", use_container_width=True, on_click=_hero_load)
+    bc1, bc2, bc3 = st.columns([1.0, 4.0, 1.25])
+    with bc2:
+        st.text_area(" ", key="hero_urls_box", height=44, label_visibility="collapsed",
+                     placeholder="Paste a YouTube link, playlist, or video ID…",
+                     value=st.session_state.get("raw_urls_box", ""))
+    with bc3:
+        st.write("")
+        st.button("Load ▶", type="primary", use_container_width=True, on_click=_hero_load)
     if st.session_state.pop("hero_warn", False):
         st.warning("Paste a YouTube link first — the box is empty.")
     st.write("")
+    sc1, sc2, sc3 = st.columns([2.3, 2.6, 2.3])
+    with sc2:
+        if st.button("▶ Try the sample talk", use_container_width=True, key="hero_sample"):
+            st.session_state.load_sample = True
+            st.rerun()
+        st.markdown('<p class="center-cap">A 14-min captioned TED talk — chat, quiz, notes, '
+                    'dubbing in one go.</p>', unsafe_allow_html=True)
     if not st.session_state.auth_user:
-        st.markdown(
-            '<div class="mode-card"><span class="mode-pill">GUEST MODE</span>'
-            '<div class="mode-sub">Your work is auto-saved in this browser — even after a refresh. '
-            'Log in to take your chats and videos everywhere.</div></div>',
-            unsafe_allow_html=True)
-        gb1, gb2, gb3 = st.columns(3, gap="small")
-        with gb1:
-            if st.button("My guest chats", use_container_width=True, key="hero_guest_chats", type="primary"):
-                sid = st.session_state.get("guest_sid") or st.session_state.get("last_guest_sid")
-                if sid and auth.guest_state_exists(sid):
-                    st.session_state.guest_sid = sid
-                    st.session_state.last_guest_sid = sid
-                    st.session_state.restore_pending = "_guest_" + sid
-                    st.rerun()
-                else:
-                    st.session_state.no_guest_data = True
-        with gb2:
-            if st.button("Login", use_container_width=True, key="hero_login"):
-                if st.session_state.get("guest_sid"):
-                    st.session_state.last_guest_sid = st.session_state.guest_sid
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
+        st.write("")
+        g1, g2, g3, g4 = st.columns([2.1, 1.15, 1.65, 1.5])
+        g1.caption("Guest mode — work is auto-saved in this browser.")
+        if g2.button("Login", use_container_width=True, key="hero_login"):
+            if st.session_state.get("guest_sid"):
+                st.session_state.last_guest_sid = st.session_state.guest_sid
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            st.rerun()
+        if g3.button("Create account", use_container_width=True, key="hero_signup"):
+            if st.session_state.get("guest_sid"):
+                st.session_state.last_guest_sid = st.session_state.guest_sid
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            st.rerun()
+        if g4.button("My guest chats", use_container_width=True, key="hero_guest_chats", type="primary"):
+            sid = st.session_state.get("guest_sid") or st.session_state.get("last_guest_sid")
+            if sid and auth.guest_state_exists(sid):
+                st.session_state.guest_sid = sid
+                st.session_state.last_guest_sid = sid
+                st.session_state.restore_pending = "_guest_" + sid
                 st.rerun()
-        with gb3:
-            if st.button("Create account", use_container_width=True, key="hero_signup"):
-                if st.session_state.get("guest_sid"):
-                    st.session_state.last_guest_sid = st.session_state.guest_sid
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                st.rerun()
+            else:
+                st.session_state.no_guest_data = True
         if st.session_state.pop("no_guest_data", False):
             st.warning("No saved guest chats on this browser yet — load a video to create some.")
-        st.write("")
-    st.markdown(
-        '<div class="hint-card"><div class="hint-text">No link handy? '
-        'Load this TED talk to see YOUBO in action — 14 min, captioned, quiz-ready.</div></div>',
-        unsafe_allow_html=True)
-    if st.button("Try a sample talk", type="primary", use_container_width=True):
-        st.session_state.load_sample = True
-        st.rerun()
