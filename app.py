@@ -93,8 +93,7 @@ st.html(
 )
 
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True  # YOUBO is dark-only: bloody red on black.
-st.session_state.dark_mode = True
+    st.session_state.dark_mode = True  # dark by default; toggle sits top-right
 
 DARK_CSS = """
 <style>
@@ -143,18 +142,26 @@ div[data-testid="stChatInput"] button { color: #FF0000 !important; }
 .hint-text { color: #c9c9d2 !important; font-size: .88rem; margin: 0 0 .55rem; }
 .auth-btns .stButton > button { min-height: 2.7em; font-weight: 600; }
 .stButton > button { min-height: 2.5em; font-weight: 600; }
+.brandflag { display: none !important; }
+[data-testid="stMarkdownContainer"]:has(> .brandflag) + * [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .brandflag) + div [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .brandflag) > [data-testid="stButton"] > button {
+  width: 100% !important; border: none !important; color: #fff !important;
+  font-family: 'Poppins', sans-serif !important; font-weight: 700 !important;
+  background: linear-gradient(90deg, #FF0000 0%, #8b0f0f 55%, #1c0606 100%) !important;
+  border-radius: 16px !important; box-shadow: 0 8px 30px rgba(255,0,0,.22) !important;
+  padding: .55rem 1rem !important; letter-spacing: .1em; font-size: 1.15rem;
+}
+[data-testid="stMarkdownContainer"]:has(> .brandflag-hero) + * [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .brandflag-hero) + div [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .brandflag-hero) > [data-testid="stButton"] > button {
+  font-size: clamp(1.5rem, 4vw, 2.5rem) !important; letter-spacing: .16em !important;
+  padding: 1rem 1.2rem !important; border-radius: 20px !important;
+}
 </style>
 """
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
-
-if st.session_state.get("section", "Chat") != "Chat":
-    st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
-if st.session_state.get("section", "Chat") == "Chat":
-    st.markdown('<div class="brandbar brandbar-hero"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
-else:
-    st.markdown('<div class="brandbar"><h1>YOUBO</h1></div>', unsafe_allow_html=True)
-
 
 def state_owner() -> str | None:
     """Who to save state under: the logged-in user, or the anonymous guest token."""
@@ -183,6 +190,60 @@ def persist_user_state() -> None:
         "transcript_tr": st.session_state.get("transcript_tr"),
         "chats": {cid: auth.history_to_list(h) for cid, h in st.session_state.store.items()},
     })
+
+
+# Top bar above the YOUBO logo: theme toggle + account, on every screen.
+if st.session_state.get("auth_user") or st.session_state.get("guest"):
+    _ab1, _ab2, _ab3 = st.columns([4.3, 0.7, 1.4])
+    with _ab2:
+        if st.button("🌙" if st.session_state.get("dark_mode", True) else "☀️",
+                     key="theme_toggle", use_container_width=True):
+            st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
+            persist_user_state()
+            st.rerun()
+    with _ab3:
+        if st.session_state.get("auth_user"):
+            st.caption(f"👤 {st.session_state.auth_user}")
+            if st.button("Logout", key="top_logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
+                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
+                          "section", "transcript_tr", "summary", "quiz_done"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
+                persist_user_state()
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                st.rerun()
+
+if st.session_state.get("section", "Chat") != "Chat":
+    st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
+
+_bc = st.columns([1])[0]
+with _bc:
+    if st.session_state.get("section", "Chat") == "Chat":
+        st.markdown('<div class="brandflag brandflag-hero"></div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="brandflag"></div>', unsafe_allow_html=True)
+    if st.button("▶ YOUBO", key="brandbar_home", use_container_width=True):
+        st.session_state.section = "Chat"
+        st.rerun()
 
 
 def apply_saved_state(saved: dict) -> None:
@@ -289,40 +350,6 @@ if st.session_state.auth_user is None and not st.session_state.guest:
 # Gate-pasted link: once a mode is chosen, load it into that session.
 if st.session_state.pop("pending_load", None):
     st.session_state.trigger_load = True
-
-# Account control — top right on every screen once in a session.
-if st.session_state.get("auth_user") or st.session_state.get("guest"):
-    _ab1, _ab2 = st.columns([5.2, 1.4])
-    with _ab2:
-        if st.session_state.get("auth_user"):
-            st.caption(f"👤 {st.session_state.auth_user}")
-            if st.button("Logout", key="top_logout", use_container_width=True):
-                persist_user_state()
-                st.session_state.auth_user = None
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
-                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
-                          "section", "transcript_tr", "summary", "quiz_done"):
-                    st.session_state.pop(k, None)
-                st.rerun()
-        else:
-            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
-                persist_user_state()
-                if st.session_state.get("guest_sid"):
-                    st.session_state.last_guest_sid = st.session_state.guest_sid
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                st.rerun()
 
 if st.session_state.get("restore_pending"):
     owner = st.session_state.restore_pending
