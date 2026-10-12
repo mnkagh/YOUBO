@@ -27,7 +27,10 @@ THEME_CSS = """
 html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Poppins', sans-serif; }
 footer { visibility: hidden !important; }
 #MainMenu { visibility: hidden !important; }
+[data-testid="stToolbar"] { visibility: hidden !important; }
 [data-testid="stDecoration"] { display: none !important; }
+[data-testid="stElementToolbar"] { display: none !important; }
+a.headerlink { display: none !important; }
 textarea::placeholder, input::placeholder { opacity: 1 !important; }
 [data-testid="stSidebar"] textarea::placeholder, [data-testid="stSidebar"] input::placeholder { color: #555555 !important; }
 div[data-testid="stChatInput"] textarea::placeholder { color: #777777 !important; }
@@ -558,6 +561,40 @@ if st.session_state.video_docs:
 # Gate-pasted link: once a mode is chosen, load it into that session.
 if st.session_state.pop("pending_load", None):
     st.session_state.trigger_load = True
+
+# Account control — top right on every screen once in a session.
+if st.session_state.get("auth_user") or st.session_state.get("guest"):
+    _ab1, _ab2 = st.columns([5.2, 1.4])
+    with _ab2:
+        if st.session_state.get("auth_user"):
+            st.caption(f"👤 {st.session_state.auth_user}")
+            if st.button("Logout", key="top_logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
+                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
+                          "section", "transcript_tr", "summary", "quiz_done"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
+                persist_user_state()
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                st.rerun()
     vectorstore, splits, bm25 = st.session_state.retriever_resources
     base_retriever = utils.HybridRetriever(vectorstore=vectorstore, splits=splits, bm25=bm25, k=4)
     retriever = utils.LinkAttachingRetriever(base=base_retriever)
@@ -1052,30 +1089,3 @@ else:
             st.rerun()
         st.markdown('<p class="center-cap">A 14-min captioned TED talk — chat, quiz, notes, '
                     'dubbing in one go.</p>', unsafe_allow_html=True)
-    if not st.session_state.auth_user:
-        st.write("")
-        g1, g2, g3, g4 = st.columns([2.1, 1.15, 1.65, 1.5])
-        g1.caption("Guest mode — work is auto-saved in this browser.")
-        if g2.button("Login", use_container_width=True, key="hero_login"):
-            if st.session_state.get("guest_sid"):
-                st.session_state.last_guest_sid = st.session_state.guest_sid
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            st.rerun()
-        if g3.button("Create account", use_container_width=True, key="hero_signup"):
-            if st.session_state.get("guest_sid"):
-                st.session_state.last_guest_sid = st.session_state.guest_sid
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            st.rerun()
-        if g4.button("My guest chats", use_container_width=True, key="hero_guest_chats", type="primary"):
-            sid = st.session_state.get("guest_sid") or st.session_state.get("last_guest_sid")
-            if sid and auth.guest_state_exists(sid):
-                st.session_state.guest_sid = sid
-                st.session_state.last_guest_sid = sid
-                st.session_state.restore_pending = "_guest_" + sid
-                st.rerun()
-            else:
-                st.session_state.no_guest_data = True
-        if st.session_state.pop("no_guest_data", False):
-            st.warning("No saved guest chats on this browser yet — load a video to create some.")
