@@ -76,12 +76,19 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .hero-bar textarea { border-radius: 14px !important; min-height: 44px !important; }
 .center-cap { text-align: center; color: #9a9aa5; font-size: .85rem; margin: .15rem 0 0 0; }
 .step-cards { display: flex; gap: .6rem; }
-div:has(> div > .logo-anchor) + div button {
+.navflag { display: none !important; }
+[data-testid="stMarkdownContainer"]:has(> .navflag) + * [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .navflag) + div [data-testid="stButton"] > button,
+div:has(> [data-testid="stMarkdownContainer"] > .navflag) > [data-testid="stButton"] > button {
   background: transparent !important; border: none !important; box-shadow: none !important;
-  justify-content: flex-start !important; padding: .2rem 0 !important; }
-div:has(> div > .logo-anchor) + div button:hover { border: none !important; box-shadow: none !important; }
-div:has(> div > .logo-anchor) + div button p { font-size: 1.4rem !important; font-weight: 700 !important; letter-spacing: .05em !important; }
-div:has(> div > .logo-anchor) + div button:hover p { color: #FF0000 !important; }
+  color: #FF0000 !important; font-size: 1.3rem !important; font-weight: 700 !important;
+  letter-spacing: .05em; padding: 0 .2rem !important; min-height: 2.2em !important;
+  justify-content: flex-start !important; }
+[data-testid="stMarkdownContainer"]:has(> .navflag) + * [data-testid="stButton"] > button:hover,
+div:has(> [data-testid="stMarkdownContainer"] > .navflag) + div [data-testid="stButton"] > button:hover,
+div:has(> [data-testid="stMarkdownContainer"] > .navflag) > [data-testid="stButton"] > button:hover {
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  color: #ff3d3d !important; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -126,10 +133,6 @@ div[data-testid="stChatInput"] textarea { background: #141419 !important; color:
 div[data-testid="stChatInput"] textarea::placeholder { color: #999999 !important; opacity: 1 !important; }
 div[data-testid="stChatInput"] button { color: #FF0000 !important; }
 [data-testid="stSidebarCollapsedControl"] { background: #FF0000 !important; border-radius: 10px !important; }
-.top-logo { position: fixed; top: .55rem; right: 1.1rem; z-index: 999999; font-weight: 700;
-  letter-spacing: .05em; font-size: .85rem; color: #fff !important; background: rgba(10,10,14,.9);
-  border: 1px solid #FF0000; padding: .25rem .7rem; border-radius: 999px; pointer-events: none; }
-.top-logo span { color: #FF0000 !important; }
 .mode-card { background: linear-gradient(180deg,#17171d,#101014); border: 1px solid #33333d;
   border-left: 3px solid #FF0000; border-radius: 12px; padding: .9rem 1.1rem;
   margin: .4rem 0 .9rem; }
@@ -142,22 +145,6 @@ div[data-testid="stChatInput"] button { color: #FF0000 !important; }
 .hint-text { color: #c9c9d2 !important; font-size: .88rem; margin: 0 0 .55rem; }
 .auth-btns .stButton > button { min-height: 2.7em; font-weight: 600; }
 .stButton > button { min-height: 2.5em; font-weight: 600; }
-.brandflag { display: none !important; }
-[data-testid="stMarkdownContainer"]:has(> .brandflag) + * [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .brandflag) + div [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .brandflag) > [data-testid="stButton"] > button {
-  width: 100% !important; border: none !important; color: #fff !important;
-  font-family: 'Poppins', sans-serif !important; font-weight: 700 !important;
-  background: linear-gradient(90deg, #FF0000 0%, #8b0f0f 55%, #1c0606 100%) !important;
-  border-radius: 16px !important; box-shadow: 0 8px 30px rgba(255,0,0,.22) !important;
-  padding: .55rem 1rem !important; letter-spacing: .1em; font-size: 1.15rem;
-}
-[data-testid="stMarkdownContainer"]:has(> .brandflag-hero) + * [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .brandflag-hero) + div [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .brandflag-hero) > [data-testid="stButton"] > button {
-  font-size: clamp(1.5rem, 4vw, 2.5rem) !important; letter-spacing: .16em !important;
-  padding: 1rem 1.2rem !important; border-radius: 20px !important;
-}
 </style>
 """
 if st.session_state.dark_mode:
@@ -192,58 +179,49 @@ def persist_user_state() -> None:
     })
 
 
-# Top bar above the YOUBO logo: theme toggle + account, on every screen.
-if st.session_state.get("auth_user") or st.session_state.get("guest"):
-    _ab1, _ab2, _ab3 = st.columns([4.3, 0.7, 1.4])
-    with _ab2:
-        if st.button("🌙" if st.session_state.get("dark_mode", True) else "☀️",
-                     key="theme_toggle", use_container_width=True):
-            st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
-            persist_user_state()
-            st.rerun()
-    with _ab3:
-        if st.session_state.get("auth_user"):
-            st.caption(f"👤 {st.session_state.auth_user}")
-            if st.button("Logout", key="top_logout", use_container_width=True):
-                persist_user_state()
-                st.session_state.auth_user = None
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
-                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
-                          "section", "transcript_tr", "summary", "quiz_done"):
-                    st.session_state.pop(k, None)
-                st.rerun()
-        else:
-            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
-                persist_user_state()
-                if st.session_state.get("guest_sid"):
-                    st.session_state.last_guest_sid = st.session_state.guest_sid
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                st.rerun()
-
-if st.session_state.get("section", "Chat") != "Chat":
-    st.markdown('<div class="top-logo"><span>▶</span> YOUBO</div>', unsafe_allow_html=True)
-
-_bc = st.columns([1])[0]
-with _bc:
-    if st.session_state.get("section", "Chat") == "Chat":
-        st.markdown('<div class="brandflag brandflag-hero"></div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="brandflag"></div>', unsafe_allow_html=True)
+# Site header — logo left, theme + account right (standard navbar).
+_nb1, _nb2, _nb3, _nb4 = st.columns([2.6, 3.3, 0.55, 1.45])
+with _nb1:
+    st.markdown('<span class="navflag"></span>', unsafe_allow_html=True)
     if st.button("▶ YOUBO", key="brandbar_home", use_container_width=True):
         st.session_state.section = "Chat"
         st.rerun()
+with _nb3:
+    if st.button("🌙" if st.session_state.get("dark_mode", True) else "☀️",
+                 key="theme_toggle", use_container_width=True):
+        st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
+        persist_user_state()
+        st.rerun()
+with _nb4:
+    if st.session_state.get("auth_user"):
+        st.caption(f"👤 {st.session_state.auth_user}")
+        if st.button("Logout", key="top_logout", use_container_width=True):
+            persist_user_state()
+            st.session_state.auth_user = None
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
+                      "retriever_resources", "retriever_cache_key", "chain", "chain_key",
+                      "section", "transcript_tr", "summary", "quiz_done"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    elif st.session_state.get("guest"):
+        if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
+            persist_user_state()
+            if st.session_state.get("guest_sid"):
+                st.session_state.last_guest_sid = st.session_state.guest_sid
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.rerun()
 
 
 def apply_saved_state(saved: dict) -> None:
