@@ -286,6 +286,44 @@ if st.session_state.auth_user is None and not st.session_state.guest:
             st.rerun()
     st.stop()
 
+# Gate-pasted link: once a mode is chosen, load it into that session.
+if st.session_state.pop("pending_load", None):
+    st.session_state.trigger_load = True
+
+# Account control — top right on every screen once in a session.
+if st.session_state.get("auth_user") or st.session_state.get("guest"):
+    _ab1, _ab2 = st.columns([5.2, 1.4])
+    with _ab2:
+        if st.session_state.get("auth_user"):
+            st.caption(f"👤 {st.session_state.auth_user}")
+            if st.button("Logout", key="top_logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
+                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
+                          "section", "transcript_tr", "summary", "quiz_done"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
+                persist_user_state()
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+                st.rerun()
+
 if st.session_state.get("restore_pending"):
     owner = st.session_state.restore_pending
     st.session_state.restore_pending = False
@@ -545,7 +583,8 @@ if st.session_state.pop("restore_videos", None) and not st.session_state.video_d
 if st.session_state.video_docs:
     docs = st.session_state.video_docs
     cache_key = tuple(st.session_state.video_ids)
-    if st.session_state.get("retriever_cache_key") != cache_key:
+    if (st.session_state.get("retriever_cache_key") != cache_key
+            or not st.session_state.get("retriever_resources")):
         # Fallback path (normally built during Load with progress UI).
         try:
             with st.spinner("Building search index..."):
@@ -556,45 +595,7 @@ if st.session_state.video_docs:
         except Exception as e:
             utils.log_error("index build", e)
             st.error(f"Could not build the search index: {e}")
-    st.stop()
-
-# Gate-pasted link: once a mode is chosen, load it into that session.
-if st.session_state.pop("pending_load", None):
-    st.session_state.trigger_load = True
-
-# Account control — top right on every screen once in a session.
-if st.session_state.get("auth_user") or st.session_state.get("guest"):
-    _ab1, _ab2 = st.columns([5.2, 1.4])
-    with _ab2:
-        if st.session_state.get("auth_user"):
-            st.caption(f"👤 {st.session_state.auth_user}")
-            if st.button("Logout", key="top_logout", use_container_width=True):
-                persist_user_state()
-                st.session_state.auth_user = None
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box",
-                          "retriever_resources", "retriever_cache_key", "chain", "chain_key",
-                          "section", "transcript_tr", "summary", "quiz_done"):
-                    st.session_state.pop(k, None)
-                st.rerun()
-        else:
-            if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
-                persist_user_state()
-                if st.session_state.get("guest_sid"):
-                    st.session_state.last_guest_sid = st.session_state.guest_sid
-                st.session_state.guest = False
-                st.session_state.guest_sid = None
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
-                st.rerun()
+            st.stop()
     vectorstore, splits, bm25 = st.session_state.retriever_resources
     base_retriever = utils.HybridRetriever(vectorstore=vectorstore, splits=splits, bm25=bm25, k=4)
     retriever = utils.LinkAttachingRetriever(base=base_retriever)
