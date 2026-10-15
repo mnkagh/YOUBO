@@ -76,26 +76,12 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .hero-bar textarea { border-radius: 14px !important; min-height: 44px !important; }
 .center-cap { text-align: center; color: #9a9aa5; font-size: .85rem; margin: .15rem 0 0 0; }
 .step-cards { display: flex; gap: .6rem; }
-.navflag { display: none !important; }
-[data-testid="stMarkdownContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button,
-[data-testid="stMarkdownContainer"]:has(.navflag) + [data-testid="stButton"] button,
-[data-testid="stMarkdownContainer"]:has(.navflag) + div button,
-div[data-testid="stElementContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button,
-div:has(> [data-testid="stMarkdownContainer"] .navflag) + div [data-testid="stButton"] > button {
-  background: transparent !important; border: none !important; box-shadow: none !important;
-  color: #FF0000 !important; font-size: 1.05rem !important; font-weight: 700 !important;
-  letter-spacing: .05em; padding: 0 .2rem !important; min-height: 2.2em !important;
-  justify-content: flex-start !important; }
-[data-testid="stMarkdownContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button:hover,
-[data-testid="stMarkdownContainer"]:has(.navflag) + [data-testid="stButton"] button:hover,
-[data-testid="stMarkdownContainer"]:has(.navflag) + div button:hover,
-div[data-testid="stElementContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button:hover,
-div:has(> [data-testid="stMarkdownContainer"] .navflag) + div [data-testid="stButton"] > button:hover {
-  background: transparent !important; border: none !important; box-shadow: none !important;
-  color: #ff3d3d !important; }
 .hero-logo { text-align: center; font-weight: 700; letter-spacing: .16em;
   font-size: clamp(2.2rem, 6vw, 3.4rem); color: #FF0000 !important;
   margin: 1.4rem 0 .3rem; }
+.auth-logo { text-align: center; font-weight: 700; letter-spacing: .16em;
+  font-size: clamp(2rem, 5vw, 3rem); color: #FF0000 !important; margin: 1rem 0 .2rem; }
+.auth-sub { text-align: center; color: #9a9aa5 !important; font-size: .92rem !important; margin: 0 0 1.1rem 0; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -186,14 +172,8 @@ def persist_user_state() -> None:
     })
 
 
-# Site header — logo + theme + account, grouped top right.
-_nb0, _nb1, _nb2, _nb3 = st.columns([4.95, 1.05, 0.55, 1.4])
-with _nb1:
-    st.markdown('<span class="navflag"></span>', unsafe_allow_html=True)
-    if st.button("▶ YOUBO", key="brandbar_home", use_container_width=True):
-        st.session_state.section = "Chat"
-        st.session_state.show_auth = False
-        st.rerun()
+# Site header — theme toggle + Sign in, right-aligned.
+_nb1, _nb2, _nb3 = st.columns([5.95, 0.55, 1.5])
 with _nb2:
     if st.button("🌙" if st.session_state.get("dark_mode", True) else "☀️",
                  key="theme_toggle", use_container_width=True):
@@ -320,35 +300,15 @@ if st.session_state.auth_user is None and not st.session_state.guest:
     if st.button("← Back to home", key="gate_back"):
         st.session_state.show_auth = False
         st.rerun()
-    st.markdown(
-        '<div class="mode-card"><span class="mode-pill">TRY IT FIRST</span>'
-        '<div class="mode-sub">Paste a YouTube link now — pick a mode below and the video '
-        'loads straight into your session. Guests keep it in this browser; accounts keep it everywhere.</div></div>',
-        unsafe_allow_html=True)
-    st.text_area(" ", key="gate_urls_box", height=80, label_visibility="collapsed",
-                 placeholder="https://www.youtube.com/watch?v=…",
-                 value=st.session_state.get("raw_urls_box", ""))
-
-    def _gate_load():
-        val = (st.session_state.get("gate_urls_box") or "").strip()
-        if not val:
-            st.session_state.gate_warn = True
-            return
-        st.session_state.raw_urls_box = val   # safe: sidebar widget not instantiated on gate runs
-        st.session_state.hero_urls_box = val
-        st.session_state.pending_load = val
-
-    st.button("Load video ▶", type="primary", use_container_width=True, on_click=_gate_load)
-    if st.session_state.pop("gate_warn", False):
-        st.warning("Paste a YouTube link first — the box is empty.")
-    if st.session_state.get("pending_load"):
-        st.info("Link saved — pick Login, Sign up or Guest mode below and it loads right away.")
-    st.write("")
-    t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest mode"])
+    st.markdown('<div class="auth-logo">▶ YOUBO</div>', unsafe_allow_html=True)
+    st.markdown('<p class="auth-sub">Sign in to continue</p>', unsafe_allow_html=True)
+    _ga1, _ga2, _ga3 = st.columns([1.0, 2.2, 1.0])
+    with _ga2:
+        t_login, t_signup, t_guest = st.tabs(["Sign in", "Create account", "Guest"])
     with t_login:
         u = st.text_input("Username", key="li_user")
         p = st.text_input("Password", type="password", key="li_pass")
-        if st.button("Login", type="primary"):
+        if st.button("Sign in", type="primary", use_container_width=True):
             if auth.verify(u, p):
                 st.session_state.auth_user = u.strip().lower()
                 st.session_state.restore_pending = st.session_state.auth_user
@@ -367,10 +327,13 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                 st.success("Account created — you're logged in.")
                 st.rerun()
     with t_guest:
-        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
+        st.markdown('<p class="auth-sub">Guest mode: everything works and your work survives '
+                    'refresh on this browser. Create an account to keep it across devices.</p>',
+                    unsafe_allow_html=True)
         last = st.session_state.get("last_guest_sid")
         can_restore = bool(last and auth.guest_state_exists(last))
-        if st.button("Restore my guest chats" if can_restore else "Continue as guest", type="primary"):
+        if st.button("Restore my guest chats" if can_restore else "Continue as guest",
+                     type="primary", use_container_width=True):
             import secrets as _secrets
             sid = last if can_restore else _secrets.token_hex(8)
             st.session_state.guest = True
