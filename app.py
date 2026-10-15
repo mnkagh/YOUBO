@@ -77,18 +77,25 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .center-cap { text-align: center; color: #9a9aa5; font-size: .85rem; margin: .15rem 0 0 0; }
 .step-cards { display: flex; gap: .6rem; }
 .navflag { display: none !important; }
-[data-testid="stMarkdownContainer"]:has(> .navflag) + * [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .navflag) + div [data-testid="stButton"] > button,
-div:has(> [data-testid="stMarkdownContainer"] > .navflag) > [data-testid="stButton"] > button {
+[data-testid="stMarkdownContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button,
+[data-testid="stMarkdownContainer"]:has(.navflag) + [data-testid="stButton"] button,
+[data-testid="stMarkdownContainer"]:has(.navflag) + div button,
+div[data-testid="stElementContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button,
+div:has(> [data-testid="stMarkdownContainer"] .navflag) + div [data-testid="stButton"] > button {
   background: transparent !important; border: none !important; box-shadow: none !important;
-  color: #FF0000 !important; font-size: 1.3rem !important; font-weight: 700 !important;
+  color: #FF0000 !important; font-size: 1.05rem !important; font-weight: 700 !important;
   letter-spacing: .05em; padding: 0 .2rem !important; min-height: 2.2em !important;
   justify-content: flex-start !important; }
-[data-testid="stMarkdownContainer"]:has(> .navflag) + * [data-testid="stButton"] > button:hover,
-div:has(> [data-testid="stMarkdownContainer"] > .navflag) + div [data-testid="stButton"] > button:hover,
-div:has(> [data-testid="stMarkdownContainer"] > .navflag) > [data-testid="stButton"] > button:hover {
+[data-testid="stMarkdownContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button:hover,
+[data-testid="stMarkdownContainer"]:has(.navflag) + [data-testid="stButton"] button:hover,
+[data-testid="stMarkdownContainer"]:has(.navflag) + div button:hover,
+div[data-testid="stElementContainer"]:has(.navflag) + div[data-testid="stElementContainer"] button:hover,
+div:has(> [data-testid="stMarkdownContainer"] .navflag) + div [data-testid="stButton"] > button:hover {
   background: transparent !important; border: none !important; box-shadow: none !important;
   color: #ff3d3d !important; }
+.hero-logo { text-align: center; font-weight: 700; letter-spacing: .16em;
+  font-size: clamp(2.2rem, 6vw, 3.4rem); color: #FF0000 !important;
+  margin: 1.4rem 0 .3rem; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
@@ -179,20 +186,21 @@ def persist_user_state() -> None:
     })
 
 
-# Site header — logo left, theme + account right (standard navbar).
-_nb1, _nb2, _nb3, _nb4 = st.columns([2.6, 3.3, 0.55, 1.45])
+# Site header — logo + theme + account, grouped top right.
+_nb0, _nb1, _nb2, _nb3 = st.columns([4.95, 1.05, 0.55, 1.4])
 with _nb1:
     st.markdown('<span class="navflag"></span>', unsafe_allow_html=True)
     if st.button("▶ YOUBO", key="brandbar_home", use_container_width=True):
         st.session_state.section = "Chat"
+        st.session_state.show_auth = False
         st.rerun()
-with _nb3:
+with _nb2:
     if st.button("🌙" if st.session_state.get("dark_mode", True) else "☀️",
                  key="theme_toggle", use_container_width=True):
         st.session_state.dark_mode = not st.session_state.get("dark_mode", True)
         persist_user_state()
         st.rerun()
-with _nb4:
+with _nb3:
     if st.session_state.get("auth_user"):
         st.caption(f"👤 {st.session_state.auth_user}")
         if st.button("Logout", key="top_logout", use_container_width=True):
@@ -200,6 +208,7 @@ with _nb4:
             st.session_state.auth_user = None
             st.session_state.guest = False
             st.session_state.guest_sid = None
+            st.session_state.show_auth = True
             try:
                 st.query_params.clear()
             except Exception:
@@ -210,17 +219,19 @@ with _nb4:
                       "section", "transcript_tr", "summary", "quiz_done"):
                 st.session_state.pop(k, None)
             st.rerun()
-    elif st.session_state.get("guest"):
+    else:
         if st.button("👤 Sign in", key="top_signin", use_container_width=True, type="primary"):
-            persist_user_state()
-            if st.session_state.get("guest_sid"):
-                st.session_state.last_guest_sid = st.session_state.guest_sid
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
+            if st.session_state.get("guest"):
+                persist_user_state()
+                if st.session_state.get("guest_sid"):
+                    st.session_state.last_guest_sid = st.session_state.guest_sid
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+            st.session_state.show_auth = True
             st.rerun()
 
 
@@ -259,7 +270,56 @@ if "auth_user" not in st.session_state:
             st.session_state.last_guest_sid = token
             st.session_state.restore_pending = "_guest_" + token
 
+def render_hero() -> None:
+    """Landing hero: big logo, headline, paste bar, sample."""
+    st.markdown('<div class="hero-logo">▶ YOUBO</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="hero"><h2>Turn any YouTube video into a conversation</h2>'
+        '<p class="feature-strip">Chat with citations · Quizzes · Study notes · Translation '
+        '· Video dubbing · Study packs</p></div>',
+        unsafe_allow_html=True)
+
+    def _hero_load():
+        val = (st.session_state.get("hero_urls_box") or "").strip()
+        if not val:
+            st.session_state.hero_warn = True
+            return
+        st.session_state.raw_urls_box = val   # callback: before widgets instantiate
+        if st.session_state.get("auth_user") or st.session_state.get("guest"):
+            st.session_state.trigger_load = True
+        else:
+            st.session_state.pending_load = val
+            st.session_state.show_auth = True
+
+    bc1, bc2, bc3 = st.columns([1.0, 4.0, 1.25])
+    with bc2:
+        st.text_area(" ", key="hero_urls_box", height=44, label_visibility="collapsed",
+                     placeholder="Paste a YouTube link, playlist, or video ID…",
+                     value=st.session_state.get("raw_urls_box", ""))
+    with bc3:
+        st.write("")
+        st.button("Load ▶", type="primary", use_container_width=True, on_click=_hero_load)
+    if st.session_state.pop("hero_warn", False):
+        st.warning("Paste a YouTube link first — the box is empty.")
+    st.write("")
+    sc1, sc2, sc3 = st.columns([2.3, 2.6, 2.3])
+    with sc2:
+        if st.button("▶ Try the sample talk", use_container_width=True, key="hero_sample"):
+            st.session_state.load_sample = True
+            if not (st.session_state.get("auth_user") or st.session_state.get("guest")):
+                st.session_state.show_auth = True
+            st.rerun()
+        st.markdown('<p class="center-cap">A 14-min captioned TED talk — chat, quiz, notes, '
+                    'dubbing in one go.</p>', unsafe_allow_html=True)
+
 if st.session_state.auth_user is None and not st.session_state.guest:
+    if not st.session_state.get("show_auth"):
+        # First-time visitor: landing page only — auth opens from the Sign in button.
+        render_hero()
+        st.stop()
+    if st.button("← Back to home", key="gate_back"):
+        st.session_state.show_auth = False
+        st.rerun()
     st.markdown(
         '<div class="mode-card"><span class="mode-pill">TRY IT FIRST</span>'
         '<div class="mode-sub">Paste a YouTube link now — pick a mode below and the video '
@@ -1063,35 +1123,4 @@ if st.session_state.video_docs:
 
     persist_user_state()
 else:
-    st.markdown(
-        '<div class="hero"><h2>Turn any YouTube video into a conversation</h2>'
-        '<p class="feature-strip">Chat with citations · Quizzes · Study notes · Translation '
-        '· Video dubbing · Study packs</p></div>',
-        unsafe_allow_html=True)
-
-    def _hero_load():
-        val = (st.session_state.get("hero_urls_box") or "").strip()
-        if not val:
-            st.session_state.hero_warn = True
-            return
-        st.session_state.raw_urls_box = val   # set BEFORE sidebar widget instantiates (callback)
-        st.session_state.trigger_load = True
-
-    bc1, bc2, bc3 = st.columns([1.0, 4.0, 1.25])
-    with bc2:
-        st.text_area(" ", key="hero_urls_box", height=44, label_visibility="collapsed",
-                     placeholder="Paste a YouTube link, playlist, or video ID…",
-                     value=st.session_state.get("raw_urls_box", ""))
-    with bc3:
-        st.write("")
-        st.button("Load ▶", type="primary", use_container_width=True, on_click=_hero_load)
-    if st.session_state.pop("hero_warn", False):
-        st.warning("Paste a YouTube link first — the box is empty.")
-    st.write("")
-    sc1, sc2, sc3 = st.columns([2.3, 2.6, 2.3])
-    with sc2:
-        if st.button("▶ Try the sample talk", use_container_width=True, key="hero_sample"):
-            st.session_state.load_sample = True
-            st.rerun()
-        st.markdown('<p class="center-cap">A 14-min captioned TED talk — chat, quiz, notes, '
-                    'dubbing in one go.</p>', unsafe_allow_html=True)
+    render_hero()
