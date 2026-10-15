@@ -82,9 +82,29 @@ div[data-testid="stRadio"] label:has(input:checked) p { color: #ffffff !importan
 .auth-logo { text-align: center; font-weight: 700; letter-spacing: .16em;
   font-size: clamp(2rem, 5vw, 3rem); color: #FF0000 !important; margin: 1rem 0 .2rem; }
 .auth-sub { text-align: center; color: #9a9aa5 !important; font-size: .92rem !important; margin: 0 0 1.1rem 0; }
+.authcard-flag { display: none !important; }
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.authcard-flag) {
+  border-radius: 16px !important; background: rgba(255,255,255,.92) !important;
+  border: 1px solid #e3c9c9 !important; box-shadow: 0 14px 44px rgba(120,0,0,.12) !important;
+  padding: 1.1rem 1.3rem 1.4rem !important; }
+/* header controls pinned into Streamlit's header bar, top right */
+div[class*="st-key-theme_toggle"], div[class*="st-key-top_signin"],
+div[class*="st-key-top_logout"], div[class*="st-key-top_usercap"] {
+  position: fixed !important; top: .22rem !important; z-index: 2147483000; }
+div[class*="st-key-theme_toggle"] { right: 9.4rem !important; width: 2.4rem !important; }
+div[class*="st-key-top_signin"] { right: 1rem !important; width: 7.6rem !important; }
+div[class*="st-key-top_usercap"] { right: 7.6rem !important; top: .5rem !important; }
+div[class*="st-key-top_logout"] { right: 1rem !important; top: 1.62rem !important; width: 5.4rem !important; }
+[data-testid="stHeader"] { min-height: 2.9rem; }
+/* in-app workspace empty state (clearly NOT the marketing landing) */
+.ws-title { font-size: 1.35rem; font-weight: 700; margin: 1.4rem 0 .2rem; }
+.ws-sub { color: #9a9aa5 !important; margin: 0 0 1.2rem 0; }
+.ws-card { background: rgba(255,0,0,.06); border: 1px solid rgba(255,0,0,.25);
+  border-radius: 14px; padding: .9rem 1.1rem; margin: .25rem 0; min-height: 5.5rem; }
+.ws-card b { color: #ff6b6b; font-size: 1.02rem; }
+.ws-card span { color: #8f8f9a; font-size: .85rem; }
 </style>
 """
-st.markdown(THEME_CSS, unsafe_allow_html=True)
 # Kill zombie widgets: if the browser serves a cached copy of the page
 # (back-forward cache), force a hard reload so inputs are live again.
 st.html(
@@ -126,6 +146,7 @@ div[data-testid="stChatInput"] textarea { background: #141419 !important; color:
 div[data-testid="stChatInput"] textarea::placeholder { color: #999999 !important; opacity: 1 !important; }
 div[data-testid="stChatInput"] button { color: #FF0000 !important; }
 [data-testid="stSidebarCollapsedControl"] { background: #FF0000 !important; border-radius: 10px !important; }
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.authcard-flag) { background: #141419 !important; border-color: #3a3a44 !important; }
 .mode-card { background: linear-gradient(180deg,#17171d,#101014); border: 1px solid #33333d;
   border-left: 3px solid #FF0000; border-radius: 12px; padding: .9rem 1.1rem;
   margin: .4rem 0 .9rem; }
@@ -140,8 +161,10 @@ div[data-testid="stChatInput"] button { color: #FF0000 !important; }
 .stButton > button { min-height: 2.5em; font-weight: 600; }
 </style>
 """
-if st.session_state.dark_mode:
-    st.markdown(DARK_CSS, unsafe_allow_html=True)
+# One style blob, identical element count in both themes —
+# toggling dark/light can't remount widgets (that was the "double buttons" flicker).
+st.markdown(THEME_CSS + (DARK_CSS if st.session_state.get("dark_mode", True) else ""),
+           unsafe_allow_html=True)
 
 def state_owner() -> str | None:
     """Who to save state under: the logged-in user, or the anonymous guest token."""
@@ -292,6 +315,29 @@ def render_hero() -> None:
         st.markdown('<p class="center-cap">A 14-min captioned TED talk — chat, quiz, notes, '
                     'dubbing in one go.</p>', unsafe_allow_html=True)
 
+
+def render_empty_workspace() -> None:
+    """In-app no-video state for guest/account sessions — NOT the marketing landing."""
+    st.markdown('<div class="ws-title">▶ Your workspace is ready</div>', unsafe_allow_html=True)
+    st.markdown('<p class="ws-sub">Load a video from the sidebar to unlock every tool. '
+                'Guest work stays in this browser; account work follows you everywhere.</p>',
+                unsafe_allow_html=True)
+    cards = [
+        ("💬 Chat", "Ask anything — answers cite timestamps"),
+        ("🧠 Quiz", "Auto-generated questions from the video"),
+        ("📝 Notes", "Summaries, full notes, study pack ZIP"),
+        ("🌍 Translate", "Full subtitles in any language"),
+        ("🎬 Dub", "Watch the video dubbed in your language"),
+        ("📚 Courses", "Playlists become lecture-by-lecture courses"),
+    ]
+    for row in range(2):
+        cols = st.columns(3)
+        for i, (title, desc) in enumerate(cards[row * 3:row * 3 + 3]):
+            with cols[i]:
+                st.markdown(f'<div class="ws-card"><b>{title}</b><br>'
+                            f'<span>{desc}</span></div>', unsafe_allow_html=True)
+
+
 if st.session_state.auth_user is None and not st.session_state.guest:
     if not st.session_state.get("show_auth"):
         # First-time visitor: landing page only — auth opens from the Sign in button.
@@ -304,48 +350,50 @@ if st.session_state.auth_user is None and not st.session_state.guest:
     st.markdown('<p class="auth-sub">Sign in to continue</p>', unsafe_allow_html=True)
     _ga1, _ga2, _ga3 = st.columns([1.0, 2.2, 1.0])
     with _ga2:
-        t_login, t_signup, t_guest = st.tabs(["Sign in", "Create account", "Guest"])
-    with t_login:
-        u = st.text_input("Username", key="li_user")
-        p = st.text_input("Password", type="password", key="li_pass")
-        if st.button("Sign in", type="primary", use_container_width=True):
-            if auth.verify(u, p):
-                st.session_state.auth_user = u.strip().lower()
-                st.session_state.restore_pending = st.session_state.auth_user
-                st.rerun()
-            else:
-                st.error("Wrong username or password.")
-    with t_signup:
-        u = st.text_input("Username", key="su_user")
-        p = st.text_input("Password", type="password", key="su_pass")
-        if st.button("Create account", type="primary"):
-            err = auth.signup(u, p)
-            if err:
-                st.error(err)
-            else:
-                st.session_state.auth_user = u.strip().lower()
-                st.success("Account created — you're logged in.")
-                st.rerun()
-    with t_guest:
-        st.markdown('<p class="auth-sub">Guest mode: everything works and your work survives '
-                    'refresh on this browser. Create an account to keep it across devices.</p>',
-                    unsafe_allow_html=True)
-        last = st.session_state.get("last_guest_sid")
-        can_restore = bool(last and auth.guest_state_exists(last))
-        if st.button("Restore my guest chats" if can_restore else "Continue as guest",
-                     type="primary", use_container_width=True):
-            import secrets as _secrets
-            sid = last if can_restore else _secrets.token_hex(8)
-            st.session_state.guest = True
-            st.session_state.guest_sid = sid
-            st.session_state.last_guest_sid = sid
-            try:
-                st.query_params["s"] = sid
-            except Exception:
-                pass
-            if can_restore:
-                st.session_state.restore_pending = "_guest_" + sid
-            st.rerun()
+        with st.container(border=True):
+            st.markdown('<span class="authcard-flag"></span>', unsafe_allow_html=True)
+            t_login, t_signup, t_guest = st.tabs(["Sign in", "Create account", "Guest"])
+            with t_login:
+                u = st.text_input("Username", key="li_user")
+                p = st.text_input("Password", type="password", key="li_pass")
+                if st.button("Sign in", type="primary", use_container_width=True):
+                    if auth.verify(u, p):
+                        st.session_state.auth_user = u.strip().lower()
+                        st.session_state.restore_pending = st.session_state.auth_user
+                        st.rerun()
+                    else:
+                        st.error("Wrong username or password.")
+            with t_signup:
+                u = st.text_input("Username", key="su_user")
+                p = st.text_input("Password", type="password", key="su_pass")
+                if st.button("Create account", type="primary", use_container_width=True):
+                    err = auth.signup(u, p)
+                    if err:
+                        st.error(err)
+                    else:
+                        st.session_state.auth_user = u.strip().lower()
+                        st.success("Account created — you're logged in.")
+                        st.rerun()
+            with t_guest:
+                st.markdown('<p class="auth-sub">Guest mode: everything works and your work '
+                            'survives refresh on this browser. Create an account to keep it '
+                            'across devices.</p>', unsafe_allow_html=True)
+                last = st.session_state.get("last_guest_sid")
+                can_restore = bool(last and auth.guest_state_exists(last))
+                if st.button("Restore my guest chats" if can_restore else "Continue as guest",
+                             type="primary", use_container_width=True):
+                    import secrets as _secrets
+                    sid = last if can_restore else _secrets.token_hex(8)
+                    st.session_state.guest = True
+                    st.session_state.guest_sid = sid
+                    st.session_state.last_guest_sid = sid
+                    try:
+                        st.query_params["s"] = sid
+                    except Exception:
+                        pass
+                    if can_restore:
+                        st.session_state.restore_pending = "_guest_" + sid
+                    st.rerun()
     st.stop()
 
 # Gate-pasted link: once a mode is chosen, load it into that session.
@@ -1086,4 +1134,4 @@ if st.session_state.video_docs:
 
     persist_user_state()
 else:
-    render_hero()
+    render_empty_workspace()
