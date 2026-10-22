@@ -36,8 +36,7 @@ THEME_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; }
-footer, #MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"],
-[data-testid="stStatusWidget"], [data-testid="stHeader"] { display: none !important; visibility: hidden !important; }
+footer, [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none !important; visibility: hidden !important; }
 [data-testid="stElementToolbar"], a.headerlink { display: none !important; }
 .block-container { max-width: 1440px; padding-top: .6rem; padding-bottom: 2rem; }
 .stButton > button { border-radius: 8px; font-weight: 600; transition: all .15s ease; }
