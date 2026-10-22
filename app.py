@@ -169,38 +169,6 @@ code, pre, [data-testid="stCodeBlock"] { background: #f5f5f5 !important; }
 """, unsafe_allow_html=True)
 
 # ─── Header ───────────────────────────────────────────────────────────────────
-st.markdown(
-    '<div class="yb-header">'
-    '<div class="yb-logo"><span>▶</span> YOUBO</div>'
-    '<div class="yb-nav">Home · History · Saved</div>'
-    '</div>',
-    unsafe_allow_html=True,
-)
-
-# Theme toggle + auth in header row
-_hc1, _hc2, _hc3 = st.columns([6, 1, 1.5])
-with _hc2:
-    if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        persist_user_state()
-        st.rerun()
-with _hc3:
-    if st.session_state.get("auth_user"):
-        st.caption(f"👤 {st.session_state.auth_user}")
-        if st.button("Logout", key="top_logout"):
-            persist_user_state()
-            st.session_state.auth_user = None
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
-                st.session_state.pop(k, None)
-            st.rerun()
-    else:
-        if st.button("👤 Sign in", key="top_signin", type="primary"):
-            st.session_state.show_auth = True
-            st.rerun()
-
 def state_owner() -> str | None:
     if st.session_state.get("auth_user"):
         return st.session_state.auth_user
@@ -249,6 +217,39 @@ def new_chat(name: str | None = None) -> str:
     st.session_state.chat_names[chat_id] = name or f"Chat {n}"
     st.session_state.active_chat = chat_id
     return chat_id
+
+
+st.markdown(
+    '<div class="yb-header">'
+    '<div class="yb-logo"><span>▶</span> YOUBO</div>'
+    '<div class="yb-nav">Home · History · Saved</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# Theme toggle + auth in header row
+_hc1, _hc2, _hc3 = st.columns([6, 1, 1.5])
+with _hc2:
+    if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        persist_user_state()
+        st.rerun()
+with _hc3:
+    if st.session_state.get("auth_user"):
+        st.caption(f"👤 {st.session_state.auth_user}")
+        if st.button("Logout", key="top_logout"):
+            persist_user_state()
+            st.session_state.auth_user = None
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    else:
+        if st.button("👤 Sign in", key="top_signin", type="primary"):
+            st.session_state.show_auth = True
+            st.rerun()
 
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
