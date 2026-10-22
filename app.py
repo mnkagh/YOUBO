@@ -74,10 +74,12 @@ hr { border-color: #333333 !important; }
 [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #222222 !important; color: #F5F5F5 !important; -webkit-text-fill-color: #F5F5F5 !important; border: 1px solid #333333 !important; }
 [data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #222222 !important; color: #F5F5F5 !important; border-color: #333333 !important; }
 [data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #F5F5F5 !important; fill: #F5F5F5 !important; }
-.yb-header { display: flex; align-items: center; gap: .9rem; padding: .4rem 0 .9rem;
+.yb-header { display: flex; align-items: center; gap: 1.1rem; padding: .35rem 0 .85rem;
   border-bottom: 1px solid #333333; margin-bottom: 1rem; }
-.yb-logo { font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; color: #F5F5F5; }
-.yb-logo span { color: #FF4545; margin-right: .35rem; }
+.yb-hdr-left { display: flex; align-items: center; gap: .9rem; }
+.yb-hdr-right { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
+.yb-logo { font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; color: #F5F5F5; display: flex; align-items: center; gap: .4rem; }
+.yb-logo span { color: #FF4545; }
 .yb-nav { color: #A3A3A3; font-size: .88rem; font-weight: 500; }
 .yb-hero { text-align: center; padding: 5rem 1rem 3rem; }
 .yb-hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -.02em;
@@ -219,37 +221,40 @@ def new_chat(name: str | None = None) -> str:
     return chat_id
 
 
-st.markdown(
-    '<div class="yb-header">'
-    '<div class="yb-logo"><span>▶</span> YOUBO</div>'
-    '<div class="yb-nav">Home · History · Saved</div>'
-    '</div>',
-    unsafe_allow_html=True,
-)
-
-# Theme toggle + auth in header row
-_hc1, _hc2, _hc3 = st.columns([6, 1, 1.5])
-with _hc2:
-    if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        persist_user_state()
-        st.rerun()
-with _hc3:
-    if st.session_state.get("auth_user"):
-        st.caption(f"👤 {st.session_state.auth_user}")
-        if st.button("Logout", key="top_logout"):
+# ---------- Header: logo + nav (left), theme toggle + Sign in (top right) ----------
+_hc_left, _hc_right = st.columns([5, 5], vertical_alignment="top")
+with _hc_left:
+    st.markdown(
+        '<div class="yb-header" style="border-bottom:none;margin-bottom:0;padding-bottom:.6rem;">'
+        '<div class="yb-hdr-left">'
+        '<div class="yb-logo"><span>&#9654;</span>YOUBO</div>'
+        '<div class="yb-nav">Home &middot; History &middot; Saved</div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+with _hc_right:
+    _t_col, _u_col = st.columns([1, 3])
+    with _t_col:
+        if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle", help="Toggle theme"):
+            st.session_state.dark_mode = not st.session_state.dark_mode
             persist_user_state()
-            st.session_state.auth_user = None
-            st.session_state.guest = False
-            st.session_state.guest_sid = None
-            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+            st.rerun()
+    with _u_col:
+        if st.session_state.get("auth_user"):
+            if st.button(f"👤 {st.session_state.auth_user}", key="top_logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
                       "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
-                st.session_state.pop(k, None)
-            st.rerun()
-    else:
-        if st.button("👤 Sign in", key="top_signin", type="primary"):
-            st.session_state.show_auth = True
-            st.rerun()
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            if st.button("👤 Sign in", key="top_signin", type="primary", use_container_width=True):
+                st.session_state.show_auth = True
+                st.rerun()
+st.markdown('<div style="border-bottom:1px solid #333333;margin:.2rem 0 1.1rem;"></div>', unsafe_allow_html=True)
 
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
@@ -283,8 +288,16 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                     st.rerun()
                 else:
                     st.warning("Paste a YouTube link first.")
-            for chip in ["Summarize this video","Explain the key concepts","Extract important timestamps","Generate quiz questions"]:
-                st.markdown(f'<span class="yb-chip">{chip}</span>', unsafe_allow_html=True)
+            _chips = "".join(
+                f'<span class="yb-chip">{c}</span>'
+                for c in ["Summarize this video", "Explain the key concepts",
+                          "Extract important timestamps", "Generate quiz questions"]
+            )
+            st.markdown(
+                f'<div style="display:flex;flex-wrap:wrap;justify-content:center;'
+                f'gap:.5rem;margin-top:.75rem;">{_chips}</div>',
+                unsafe_allow_html=True,
+            )
         st.stop()
     if st.button("Back to home", key="gate_back"):
         st.session_state.show_auth = False
