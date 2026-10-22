@@ -386,11 +386,19 @@ def _transcribe_cloud(audio_path: str) -> tuple:
         client = InferenceClient(token=token)
         with open(audio_path, "rb") as f:
             out = client.automatic_speech_recognition(
-                f.read(), model="openai/whisper-large-v3-turbo", return_timestamps=True)
-    chunks = out.get("chunks", []) if isinstance(out, dict) else []
-    snippets = [{"text": c["text"].strip(), "start": c["timestamp"][0] or 0,
-                 "duration": (c["timestamp"][1] or 0) - (c["timestamp"][0] or 0)}
-                for c in chunks if c["text"].strip()]
+                f.read(), model="openai/whisper-large-v3-turbo",
+                extra_body={"return_timestamps": True})
+    chunks = getattr(out, "chunks", None) or (out.get("chunks") if isinstance(out, dict) else None) or []
+    snippets = []
+    for c in chunks:
+        text = getattr(c, "text", None) if not isinstance(c, dict) else c.get("text")
+        ts = getattr(c, "timestamp", None) if not isinstance(c, dict) else c.get("timestamp")
+        if not text or not text.strip():
+            continue
+        start = (ts[0] if ts else 0) or 0
+        end = (ts[1] if ts and len(ts) > 1 else start) or start
+        snippets.append({"text": text.strip(), "start": start,
+                         "duration": max(0.0, end - start)})
     if not snippets:
         raise RuntimeError("Cloud transcription came back empty.")
     return snippets, "unknown (cloud speech-to-text)"
