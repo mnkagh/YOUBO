@@ -201,35 +201,13 @@ with _hc3:
             st.session_state.show_auth = True
             st.rerun()
 
-# (persist_user_state defined below — forward ref guarded)
-
-
-def apply_saved_state(saved: dict) -> None:
-    st.session_state.dark_mode = saved.get("dark_mode", True)
-    st.session_state.chat_names = saved.get("chat_names", {})
-    st.session_state.active_chat = saved.get("active_chat")
-    st.session_state.store = {
-        cid: auth.list_to_history(items) for cid, items in saved.get("chats", {}).items()
-    }
-    st.session_state.raw_urls_box = saved.get("raw_urls", "")
-    st.session_state.lang_choice = saved.get("lang", "Auto (any available)")
-    st.session_state.compare_mode = saved.get("compare", False)
-    st.session_state.restore_videos = saved.get("video_ids", [])
-    st.session_state.video_meta = saved.get("video_meta", {})
-    st.session_state.video_lang = saved.get("video_lang", "")
-    if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
-        new_chat()
-
-
 def state_owner() -> str | None:
-    """Who to save state under: the logged-in user, or the anonymous guest token."""
     if st.session_state.get("auth_user"):
         return st.session_state.auth_user
     sid = st.session_state.get("guest_sid")
     if st.session_state.get("guest") and sid:
         return f"_guest_{sid}"
     return None
-
 
 def persist_user_state() -> None:
     owner = state_owner()
@@ -248,7 +226,6 @@ def persist_user_state() -> None:
         "chats": {cid: auth.history_to_list(h) for cid, h in st.session_state.store.items()},
     })
 
-
 def apply_saved_state(saved: dict) -> None:
     st.session_state.dark_mode = saved.get("dark_mode", True)
     st.session_state.chat_names = saved.get("chat_names", {})
@@ -265,7 +242,6 @@ def apply_saved_state(saved: dict) -> None:
     if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
         new_chat()
 
-
 def new_chat(name: str | None = None) -> str:
     chat_id = uuid.uuid4().hex[:8]
     st.session_state.store[chat_id] = ChatMessageHistory()
@@ -273,7 +249,6 @@ def new_chat(name: str | None = None) -> str:
     st.session_state.chat_names[chat_id] = name or f"Chat {n}"
     st.session_state.active_chat = chat_id
     return chat_id
-
 
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
@@ -397,15 +372,6 @@ for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
     if key not in st.session_state:
         st.session_state[key] = default
 
-
-def new_chat(name: str | None = None) -> str:
-    """Create a chat with an auto-generated id. Users never see or type ids."""
-    chat_id = uuid.uuid4().hex[:8]
-    st.session_state.store[chat_id] = ChatMessageHistory()
-    n = len(st.session_state.chat_names) + 1
-    st.session_state.chat_names[chat_id] = name or f"Chat {n}"
-    st.session_state.active_chat = chat_id
-    return chat_id
 
 
 if st.session_state.active_chat is None:
