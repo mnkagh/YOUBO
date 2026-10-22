@@ -350,14 +350,30 @@ def transcribe_audio(video_id: str, model_name: str | None = None) -> tuple:
             return _transcribe_local(audio_path, model_name), "unknown (local speech-to-text)"
         except Exception as e:
             log.warning(f"local transcription blocked ({e}) — trying cloud ASR")
-            return _transcribe_cloud(audio_path)
+            try:
+                return _transcribe_cloud(audio_path)
+            except Exception as e2:
+                raise RuntimeError(
+                    "This video has no captions, and transcription is not available "
+                    "right now. Local Whisper is blocked by Windows Defender "
+                    "Application Control (WDAC) on this PC, and cloud ASR "
+                    "needs Hugging Face credits. Free workaround: use a video "
+                    "that already has captions (most public uploads have "
+                    "auto-captions). "
+                    f"(local: {type(e).__name__}; cloud: {e2})")
     finally:
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _transcribe_local(audio_path: str, model_name: str | None = None) -> list:
-    from faster_whisper import WhisperModel
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        raise RuntimeError(
+            "Local transcription unavailable: faster-whisper could not load "
+            f"({type(e).__name__}). On this PC Windows Defender Application "
+            "Control (WDAC) blocks the native libraries Whisper needs.")
     model_name = model_name or os.getenv("WHISPER_MODEL", "tiny")
     with Timer(f"whisper local [{model_name}]"):
         model = WhisperModel(model_name, device="cpu", compute_type="int8")

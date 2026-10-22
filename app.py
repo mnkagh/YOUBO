@@ -493,7 +493,11 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
                     meta[vid] = utils.get_video_metadata(vid)
                 except Exception as e2:
                     utils.log_error(f"audio fallback {vid}", e2)
-                    st.warning(f"Skipping {vid}: no captions and audio transcription failed ({e2})")
+                    st.warning(
+                        f"Skipping {vid}: this video has no captions and could not be "
+                        "transcribed. Free workaround: use a video that already has "
+                        "captions (most public uploads include auto-captions). "
+                        f"Details: {e2}")
         if all_docs:
             st.write("Building search index...")
             try:
@@ -507,7 +511,11 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
                 st.error(f"Could not build the search index: {e}")
                 all_docs = []
     if not all_docs:
-        st.error("No transcripts available. Videos may lack captions.")
+        st.error(
+            "No transcripts available. None of the pasted videos have usable "
+            "captions, and free transcription is unavailable on this PC "
+            "(local Whisper is blocked by WDAC; cloud ASR needs HF credits). "
+            "Try videos that already have captions.")
         return False
     st.session_state.video_docs = all_docs
     st.session_state.video_ids = video_ids
