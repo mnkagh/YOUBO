@@ -18,31 +18,93 @@ load_dotenv()
 if os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = os.getenv("HF_TOKEN")
 
-st.set_page_config(page_title="YOUBO", page_icon=":tv:", layout="wide")
+st.set_page_config(page_title="YOUBO", page_icon="▶", layout="wide",
+                   initial_sidebar_state="expanded")
+
+# ─── Premium dark theme (YouTube Studio + minimal research assistant) ──────────
+BG        = "#111111"
+BG2       = "#181818"
+SURFACE   = "#222222"
+BORDER    = "#333333"
+TEXT      = "#F5F5F5"
+MUTED     = "#A3A3A3"
+ACCENT    = "#FF4545"
+SUCCESS   = "#22c55e"
+ERROR     = "#ef4444"
 
 THEME_CSS = """
 <style>
-.block-container { max-width: 1100px; }
-h1 { border-bottom: 4px solid #FF0000; padding-bottom: .3rem; }
-.stButton > button { border-radius: 999px; font-weight: 600; }
-.stButton > button[kind="primary"], .stButton > button:hover { border-color: #FF0000; }
-.stChatMessage { border-radius: 14px; }
-[data-testid="stSidebar"] { background: linear-gradient(180deg, #1a0505 0%, #0f0f0f 30%); }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; }
+footer, #MainMenu, [data-testid="stToolbar"], [data-testid="stDecoration"],
+[data-testid="stStatusWidget"], [data-testid="stHeader"] { display: none !important; visibility: hidden !important; }
+[data-testid="stElementToolbar"], a.headerlink { display: none !important; }
+.block-container { max-width: 1440px; padding-top: .6rem; padding-bottom: 2rem; }
+.stButton > button { border-radius: 8px; font-weight: 600; transition: all .15s ease; }
+.stButton > button[kind="primary"] { background: #FF4545 !important; color: #fff !important; border: none !important; }
+.stButton > button[kind="primary"]:hover { background: #ff5a5a !important; }
+.stButton > button:hover { border-color: #FF4545 !important; }
+.stTextInput > div > div > input, .stTextArea textarea, [data-baseweb="input"] input {
+  background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important;
+  border-radius: 8px !important; }
+.stTextInput > div > div > input:focus, .stTextArea textarea:focus { border-color: #FF4545 !important; box-shadow: 0 0 0 1px #FF4545 !important; }
+.stChatMessage { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 12px !important; padding: .8rem 1rem !important; }
+[data-testid="stChatInput"] textarea { background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important; border-radius: 10px !important; }
+[data-testid="stChatInput"] button { color: #FF4545 !important; }
+.stTabs [data-baseweb="tab-list"] { background: #181818 !important; border-radius: 10px; padding: .2rem; gap: .2rem; border: 1px solid #333333; }
+.stTabs [data-baseweb="tab"] { color: #A3A3A3 !important; font-weight: 600; border-radius: 8px; padding: .45rem .95rem; }
+.stTabs [aria-selected="true"] { color: #F5F5F5 !important; background: #222222 !important; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none !important; }
+.stExpander { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 10px !important; }
+.stExpander summary { color: #F5F5F5 !important; font-weight: 600; }
+.stMetric { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 10px; padding: .6rem .9rem; }
+.stMetric label { color: #A3A3A3 !important; font-size: .78rem !important; }
+.stMetric [data-testid="stMetricValue"] { color: #F5F5F5 !important; }
+code, pre, [data-testid="stCodeBlock"] { background: #181818 !important; border: 1px solid #333333; border-radius: 8px; }
+[data-testid="stCodeBlock"] code { color: #F5F5F5 !important; }
+.stAlert { border-radius: 10px; }
+.stSelectbox [data-baseweb="select"] > div { background: #222222 !important; border-color: #333333 !important; color: #F5F5F5 !important; }
+.stRadio label, .stCheckbox label { color: #F5F5F5 !important; }
+.stSlider label { color: #A3A3A3 !important; }
+hr { border-color: #333333 !important; }
+[data-testid="stSidebar"] { background: #181818 !important; border-right: 1px solid #333333; }
 [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] .stRadio label, [data-testid="stSidebar"] .stCheckbox label,
-[data-testid="stSidebar"] .stToggle label { color: #f5f5f5 !important; }
-[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
-[data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #ffffff !important; color: #111111 !important; }
-[data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #111111 !important; fill: #111111 !important; }
-section[data-testid="stSidebar"] img { border-radius: 10px; }
-.stTabs [data-baseweb="tab"] { font-weight: 600; }
-.stTabs [aria-selected="true"] { color: #FF0000 !important; }
-.stMetric { background: #fff5f5; border: 1px solid #ffc9c9; border-radius: 12px; padding: .5rem; }
+[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3, [data-testid="stSidebar"] .stRadio label { color: #F5F5F5 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #222222 !important; color: #F5F5F5 !important; -webkit-text-fill-color: #F5F5F5 !important; border: 1px solid #333333 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #222222 !important; color: #F5F5F5 !important; border-color: #333333 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #F5F5F5 !important; fill: #F5F5F5 !important; }
+.yb-header { display: flex; align-items: center; gap: .9rem; padding: .4rem 0 .9rem;
+  border-bottom: 1px solid #333333; margin-bottom: 1rem; }
+.yb-logo { font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; color: #F5F5F5; }
+.yb-logo span { color: #FF4545; margin-right: .35rem; }
+.yb-nav { color: #A3A3A3; font-size: .88rem; font-weight: 500; }
+.yb-hero { text-align: center; padding: 5rem 1rem 3rem; }
+.yb-hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -.02em;
+  margin: 0 0 .6rem; border: none !important; }
+.yb-hero p { color: #A3A3A3; font-size: 1.05rem; max-width: 560px; margin: 0 auto 2rem; }
+.yb-chip { display: inline-block; padding: .35rem .85rem; margin: .25rem; border-radius: 999px;
+  background: #181818; border: 1px solid #333333; color: #F5F5F5; font-size: .82rem;
+  cursor: pointer; transition: all .15s; }
+.yb-chip:hover { border-color: #FF4545; color: #FF4545; }
+.yb-card { background: #181818; border: 1px solid #333333; border-radius: 12px; padding: 1.1rem 1.25rem; }
+.yb-muted { color: #A3A3A3 !important; font-size: .88rem; }
+.yb-meta { display: flex; gap: .6rem; align-items: center; color: #A3A3A3; font-size: .82rem; }
+.yb-cite { display: inline-block; padding: .05rem .45rem; margin: 0 .15rem;
+  background: #2a1414; border: 1px solid #5a2020; color: #ff8a8a; border-radius: 6px;
+  font-size: .76rem; font-weight: 600; }
+.yb-section-h { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 .5rem; color: #F5F5F5; }
+.yb-empty { text-align: center; padding: 3rem 1rem; color: #A3A3A3; }
+.yb-empty h3 { color: #F5F5F5; margin-bottom: .4rem; }
+.yb-processing { background: #181818; border: 1px solid #333333; border-radius: 10px;
+  padding: .7rem .9rem; margin: .5rem 0; }
+.yb-processing .step { color: #A3A3A3; font-size: .85rem; padding: .15rem 0; }
+.yb-processing .step.done { color: #22c55e; }
+.yb-processing .step.active { color: #FF4545; }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
+
 # Kill zombie widgets: if the browser serves a cached copy of the page
 # (back-forward cache), force a hard reload so inputs are live again.
 st.html(
@@ -51,38 +113,112 @@ st.html(
 )
 
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True  # black by default
+    st.session_state.dark_mode = True  # dark by default
 
 DARK_CSS = """
 <style>
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] { background: #0b0b0f !important; }
-.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #f1f1f1 !important; }
-.stTextInput input, .stTextArea textarea { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
-[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #ffffff !important; color: #111111 !important; -webkit-text-fill-color: #111111 !important; border: 1px solid #cccccc !important; }
-.stChatMessage { background: #141419 !important; border: 1px solid #26262e !important; }
-.stChatInputContainer textarea, [data-testid="stChatInput"] textarea { background: #1c1c22 !important; color: #fff !important; }
-.stTabs [data-baseweb="tab"] { color: #bbbbbb !important; }
-.stTabs [data-baseweb="tab-list"] { background: #0b0b0f !important; }
-.stExpander, details { background: #141419 !important; border-color: #26262e !important; }
-.stExpander summary, .stExpander p, .stExpander span { color: #f1f1f1 !important; }
-.stRadio label, .stCheckbox label, .stSelectbox label { color: #f1f1f1 !important; }
-.stButton > button { background: #1c1c22 !important; color: #ffffff !important; border: 1px solid #3a3a44 !important; }
-.stButton > button:hover { border-color: #FF0000 !important; color: #ffffff !important; }
-.stDownloadButton > button { background: #2a0d0d !important; color: #ffb3b3 !important; border: 1px solid #7a1f1f !important; }
-.stMetric { background: #1a1010 !important; border: 1px solid #5c1a1a !important; }
-.stMetric label, .stMetric div { color: #ffd7d7 !important; }
-code, pre, [data-testid="stCodeBlock"] { background: #141419 !important; }
-[data-testid="stCodeBlock"] code { color: #e8e8e8 !important; }
-.stSlider label { color: #f1f1f1 !important; }
-.stAlert { filter: brightness(.92); }
-hr { border-color: #2a2a32 !important; }
+.stApp, [data-testid="stAppViewContainer"] { background: #111111 !important; }
+.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #F5F5F5 !important; }
+.stTextInput input, .stTextArea textarea { background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important; }
+.stChatMessage { background: #181818 !important; border: 1px solid #333333 !important; }
+[data-testid="stChatInput"] textarea { background: #222222 !important; color: #F5F5F5 !important; -webkit-text-fill-color: #F5F5F5 !important; }
+.stTabs [data-baseweb="tab"] { color: #A3A3A3 !important; }
+.stTabs [data-baseweb="tab-list"] { background: #181818 !important; }
+.stExpander { background: #181818 !important; border-color: #333333 !important; }
+.stExpander summary, .stExpander p, .stExpander span { color: #F5F5F5 !important; }
+.stRadio label, .stCheckbox label, .stSelectbox label { color: #F5F5F5 !important; }
+.stButton > button { background: #181818 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important; }
+.stButton > button:hover { border-color: #FF4545 !important; }
+.stDownloadButton > button { background: #2a1414 !important; color: #ffb3b3 !important; border: 1px solid #5a2020 !important; }
+.stMetric { background: #181818 !important; border: 1px solid #333333 !important; }
+.stMetric label, .stMetric div { color: #F5F5F5 !important; }
+code, pre, [data-testid="stCodeBlock"] { background: #181818 !important; }
+[data-testid="stCodeBlock"] code { color: #F5F5F5 !important; }
+.stAlert { filter: brightness(.95); }
+hr { border-color: #333333 !important; }
+[data-testid="stSidebar"] { background: #181818 !important; }
+[data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] .stRadio label { color: #F5F5F5 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #222222 !important; color: #F5F5F5 !important; -webkit-text-fill-color: #F5F5F5 !important; border: 1px solid #333333 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #222222 !important; color: #F5F5F5 !important; border-color: #333333 !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #F5F5F5 !important; fill: #F5F5F5 !important; }
 </style>
 """
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
+else:
+    # light mode: override surfaces to white-ish
+    st.markdown("""
+<style>
+.stApp, [data-testid="stAppViewContainer"] { background: #fafafa !important; }
+.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #111 !important; }
+.stTextInput input, .stTextArea textarea { background: #fff !important; color: #111 !important; border: 1px solid #ddd !important; }
+.stChatMessage { background: #fff !important; border: 1px solid #ddd !important; }
+[data-testid="stChatInput"] textarea { background: #fff !important; color: #111 !important; }
+.stTabs [data-baseweb="tab-list"] { background: #f0f0f0 !important; }
+.stExpander { background: #fff !important; border-color: #ddd !important; }
+.stButton > button { background: #fff !important; color: #111 !important; border: 1px solid #ddd !important; }
+.stMetric { background: #fff !important; border: 1px solid #ddd !important; }
+code, pre, [data-testid="stCodeBlock"] { background: #f5f5f5 !important; }
+[data-testid="stSidebar"] { background: #f5f5f5 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #fff !important; color: #111 !important; -webkit-text-fill-color: #111 !important; }
+.yb-card, .yb-processing { background: #fff !important; border-color: #ddd !important; }
+</style>
+""", unsafe_allow_html=True)
 
-st.title("YOUBO — Chat with YouTube Videos")
-st.caption("Hybrid retrieval (Qdrant + BM25) with timestamped citations.")
+# ─── Header ───────────────────────────────────────────────────────────────────
+st.markdown(
+    '<div class="yb-header">'
+    '<div class="yb-logo"><span>▶</span> YOUBO</div>'
+    '<div class="yb-nav">Home · History · Saved</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# Theme toggle + auth in header row
+_hc1, _hc2, _hc3 = st.columns([6, 1, 1.5])
+with _hc2:
+    if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle"):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        persist_user_state()
+        st.rerun()
+with _hc3:
+    if st.session_state.get("auth_user"):
+        st.caption(f"👤 {st.session_state.auth_user}")
+        if st.button("Logout", key="top_logout"):
+            persist_user_state()
+            st.session_state.auth_user = None
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    else:
+        if st.button("👤 Sign in", key="top_signin", type="primary"):
+            st.session_state.show_auth = True
+            st.rerun()
+
+# (persist_user_state defined below — forward ref guarded)
+
+
+def apply_saved_state(saved: dict) -> None:
+    st.session_state.dark_mode = saved.get("dark_mode", True)
+    st.session_state.chat_names = saved.get("chat_names", {})
+    st.session_state.active_chat = saved.get("active_chat")
+    st.session_state.store = {
+        cid: auth.list_to_history(items) for cid, items in saved.get("chats", {}).items()
+    }
+    st.session_state.raw_urls_box = saved.get("raw_urls", "")
+    st.session_state.lang_choice = saved.get("lang", "Auto (any available)")
+    st.session_state.compare_mode = saved.get("compare", False)
+    st.session_state.restore_videos = saved.get("video_ids", [])
+    st.session_state.video_meta = saved.get("video_meta", {})
+    st.session_state.video_lang = saved.get("video_lang", "")
+    if not st.session_state.active_chat or st.session_state.active_chat not in st.session_state.store:
+        new_chat()
 
 
 def state_owner() -> str | None:
@@ -130,6 +266,15 @@ def apply_saved_state(saved: dict) -> None:
         new_chat()
 
 
+def new_chat(name: str | None = None) -> str:
+    chat_id = uuid.uuid4().hex[:8]
+    st.session_state.store[chat_id] = ChatMessageHistory()
+    n = len(st.session_state.chat_names) + 1
+    st.session_state.chat_names[chat_id] = name or f"Chat {n}"
+    st.session_state.active_chat = chat_id
+    return chat_id
+
+
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
     st.session_state.guest = False
@@ -148,39 +293,73 @@ if "auth_user" not in st.session_state:
             st.session_state.restore_pending = "_guest_" + token
 
 if st.session_state.auth_user is None and not st.session_state.guest:
-    t_login, t_signup, t_guest = st.tabs(["Login", "Sign up", "Guest"])
-    with t_login:
-        u = st.text_input("Username", key="li_user")
-        p = st.text_input("Password", type="password", key="li_pass")
-        if st.button("Login", type="primary"):
-            if auth.verify(u, p):
-                st.session_state.auth_user = u.strip().lower()
-                st.session_state.restore_pending = st.session_state.auth_user
-                st.rerun()
-            else:
-                st.error("Wrong username or password.")
-    with t_signup:
-        u = st.text_input("Username", key="su_user")
-        p = st.text_input("Password", type="password", key="su_pass")
-        if st.button("Create account", type="primary"):
-            err = auth.signup(u, p)
-            if err:
-                st.error(err)
-            else:
-                st.session_state.auth_user = u.strip().lower()
-                st.success("Account created — you're logged in.")
-                st.rerun()
-    with t_guest:
-        st.write("Guest mode: everything works and your work survives refresh on this browser. Login to keep it across devices.")
-        if st.button("Continue as guest", type="primary"):
-            import secrets as _secrets
-            st.session_state.guest = True
-            st.session_state.guest_sid = _secrets.token_hex(8)
-            try:
-                st.query_params["s"] = st.session_state.guest_sid
-            except Exception:
-                pass
-            st.rerun()
+    if not st.session_state.get("show_auth"):
+        st.markdown('<div class="yb-hero"><h1>Understand any video.</h1>'
+                    '<p>Ask questions, explore ideas, and learn from YouTube videos. '
+                    'Paste a link below to begin.</p></div>', unsafe_allow_html=True)
+        _c1, _c2, _c3 = st.columns([1, 3, 1])
+        with _c2:
+            url = st.text_input("YouTube URL", key="landing_url", placeholder="https://www.youtube.com/watch?v=...", label_visibility="collapsed")
+            if st.button("Analyze Video", type="primary", use_container_width=True):
+                if url.strip():
+                    st.session_state.raw_urls_box = url.strip()
+                    st.session_state.show_auth = True
+                    st.rerun()
+                else:
+                    st.warning("Paste a YouTube link first.")
+            for chip in ["Summarize this video","Explain the key concepts","Extract important timestamps","Generate quiz questions"]:
+                st.markdown(f'<span class="yb-chip">{chip}</span>', unsafe_allow_html=True)
+        st.stop()
+    if st.button("Back to home", key="gate_back"):
+        st.session_state.show_auth = False
+        st.rerun()
+    st.markdown('<div class="yb-hero" style="padding:3rem 1rem 1.5rem;"><h1 style="font-size:2rem;">Sign in to continue</h1></div>', unsafe_allow_html=True)
+    _a1, _a2, _a3 = st.columns([1, 2.2, 1])
+    with _a2:
+        with st.container(border=True):
+            t_login, t_signup, t_guest = st.tabs(["Sign in", "Create account", "Guest"])
+            with t_login:
+                u = st.text_input("Username", key="li_user")
+                p = st.text_input("Password", type="password", key="li_pass")
+                if st.button("Sign in", type="primary", use_container_width=True):
+                    if auth.verify(u, p):
+                        st.session_state.auth_user = u.strip().lower()
+                        st.session_state.restore_pending = st.session_state.auth_user
+                        st.session_state.show_auth = False
+                        st.rerun()
+                    else:
+                        st.error("Wrong username or password.")
+            with t_signup:
+                u = st.text_input("Username", key="su_user")
+                p = st.text_input("Password", type="password", key="su_pass")
+                if st.button("Create account", type="primary", use_container_width=True):
+                    err = auth.signup(u, p)
+                    if err:
+                        st.error(err)
+                    else:
+                        st.session_state.auth_user = u.strip().lower()
+                        st.session_state.restore_pending = st.session_state.auth_user
+                        st.session_state.show_auth = False
+                        st.success("Account created")
+                        st.rerun()
+            with t_guest:
+                st.markdown('<p class="yb-muted">Guest mode: everything works and your work survives refresh. Create an account to keep it across devices.</p>', unsafe_allow_html=True)
+                last = st.session_state.get("last_guest_sid")
+                import secrets as _secrets
+                can_restore = bool(last and auth.guest_state_exists(last))
+                if st.button("Restore my guest chats" if can_restore else "Continue as guest", type="primary", use_container_width=True):
+                    sid = last if can_restore else _secrets.token_hex(8)
+                    st.session_state.guest = True
+                    st.session_state.guest_sid = sid
+                    st.session_state.last_guest_sid = sid
+                    try:
+                        st.query_params["s"] = sid
+                    except Exception:
+                        pass
+                    if can_restore:
+                        st.session_state.restore_pending = "_guest_" + sid
+                    st.session_state.show_auth = False
+                    st.rerun()
     st.stop()
 
 if st.session_state.get("restore_pending"):
@@ -399,7 +578,6 @@ if st.session_state.video_docs:
     docs = st.session_state.video_docs
     cache_key = tuple(st.session_state.video_ids)
     if st.session_state.get("retriever_cache_key") != cache_key:
-        # Fallback path (normally built during Load with progress UI).
         try:
             with st.spinner("Building search index..."):
                 st.session_state.retriever_resources = utils.build_hybrid_retriever(
@@ -435,9 +613,9 @@ if st.session_state.video_docs:
     cite_rules = (
         "Cite every factual claim with the exact [Source](url) markdown link found "
         "in the retrieved context. Never invent timestamps, never use any other "
-        "citation format (no brackets like 【】, no footnotes)."
+        "citation format (no brackets like ??, no footnotes)."
     )
-    if compare_mode:
+    if st.session_state.get("compare_mode"):
         system_prompt = (
             "You compare what different videos say. "
             f"{scope} Compare and contrast perspectives across the loaded videos. "
@@ -446,7 +624,7 @@ if st.session_state.video_docs:
     else:
         system_prompt = (
             "You answer questions directly about YouTube video content. "
-            f"{scope} Answer helpfully and concretely from the retrieved context — "
+            f"{scope} Answer helpfully and concretely from the retrieved context ? "
             "no hedging, no 'as an AI'. "
             f"{cite_rules} If the answer isn't in the context, say what you do know "
             "from the videos instead of refusing.\n\n{{context}}"
@@ -465,16 +643,148 @@ if st.session_state.video_docs:
         output_messages_key="answer",
     )
 
-    tab_chat, tab_summary, tab_quiz, tab_notes, tab_translate, tab_guide = st.tabs(
-        ["Chat", "Summary", "Quiz", "Notes & Export", "Translate", "Guide"]
-    )
+    # ??? Two-column workspace ???????????????????????????????????????????????
+    left, right = st.columns([1.35, 1], gap="large")
 
-    with tab_chat:
+    with left:
+        # Video player + meta
+        with st.container(border=True):
+            if st.session_state.video_ids:
+                vid = st.session_state.video_ids[0]
+                st.video(f"https://www.youtube.com/watch?v={vid}")
+            meta0 = st.session_state.video_meta.get(st.session_state.video_ids[0], {}) if st.session_state.video_ids else {}
+            if meta0:
+                st.markdown(f"**{meta0.get('title', '')}**")
+                st.caption(f"{meta0.get('uploader','')} ? {(meta0.get('duration') or 0)//60}m {(meta0.get('duration') or 0)%60}s ? {len(st.session_state.video_ids)} video(s) ? {st.session_state.video_lang}")
+        # Research tabs
+        t_summary, t_transcript, t_notes = st.tabs(["Summary", "Transcript", "Notes"])
+        main_type = content_types[0] if content_types else "general"
+        with t_summary:
+            level = st.radio("Summary length", ["TL;DR", "Short", "Detailed"], horizontal=True, key="sum_level")
+            if st.button("Generate summary", type="primary"):
+                full_text = "\n".join(d.page_content for d in docs)
+                with st.spinner("Summarizing..."):
+                    try:
+                        st.session_state.summary = utils.build_summary(llm, full_text, level, main_type)
+                    except Exception as e:
+                        utils.log_error("summary", e)
+                        st.error("Summary failed.")
+            if st.session_state.get("summary"):
+                st.markdown(st.session_state.summary)
+                st.download_button("Download summary (.md)", st.session_state.summary, file_name="summary.md", mime="text/markdown")
+            st.markdown('<div class="yb-section-h">Key moments</div>', unsafe_allow_html=True)
+            for m in utils.build_key_moments(docs):
+                st.markdown(f"[{int(m['start'])}s]({m['link']}) ? {m['snippet']}")
+        with t_transcript:
+            q = st.text_input("Search transcript", key="tr_search", placeholder="keyword...")
+            shown = 0
+            for d in docs:
+                txt = d.page_content
+                if q and q.lower() not in txt.lower():
+                    continue
+                meta = d.metadata if hasattr(d, "metadata") else {}
+                ts = meta.get("start") if isinstance(meta, dict) else None
+                label = f"[{int(ts)}s]" if ts is not None else ""
+                st.markdown(f"<span class='yb-muted'>{label}</span> {txt}", unsafe_allow_html=True)
+                shown += 1
+                if shown >= 60:
+                    st.caption("Showing first 60 matching segments.")
+                    break
+            if shown == 0:
+                st.info("No transcript segments match.")
+        with t_notes:
+            if st.button("Generate study notes", type="primary"):
+                full_text = "\n".join(d.page_content for d in docs)
+                with st.spinner("Summarizing..."):
+                    try:
+                        st.session_state.notes = utils.build_notes(llm, full_text, main_type)
+                    except Exception as e:
+                        utils.log_error("notes", e)
+                        st.error("Notes generation failed.")
+            if st.session_state.get("notes"):
+                st.markdown(st.session_state.notes)
+                c1, c2 = st.columns(2)
+                c1.download_button("Download notes (.md)", st.session_state.notes, file_name="study_notes.md", mime="text/markdown")
+                try:
+                    c2.download_button("Download notes (.pdf)", utils.notes_to_pdf(st.session_state.notes), file_name="study_notes.pdf", mime="application/pdf")
+                except Exception:
+                    c2.info("Install fpdf2 for PDF export.")
+            # Translate
+            st.markdown('<div class="yb-section-h">Translate</div>', unsafe_allow_html=True)
+            target = st.selectbox("Target language", utils.TARGET_LANGS, index=0, key="tr_lang")
+            c1, c2 = st.columns(2)
+            if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
+                with st.spinner(f"Translating summary to {target}..."):
+                    try:
+                        st.session_state.summary_tr = utils.translate_text(llm, st.session_state.summary, target)
+                    except Exception as e:
+                        utils.log_error("translate summary", e)
+                        st.error("Translation failed.")
+            if c2.button("Translate notes", disabled=not st.session_state.get("notes")):
+                with st.spinner(f"Translating notes to {target}..."):
+                    try:
+                        st.session_state.notes_tr = utils.translate_text(llm, st.session_state.notes, target)
+                    except Exception as e:
+                        utils.log_error("translate notes", e)
+                        st.error("Translation failed.")
+            if st.session_state.get("summary_tr"):
+                st.markdown(f"**Summary ({target})**")
+                st.markdown(st.session_state.summary_tr)
+            if st.session_state.get("notes_tr"):
+                st.markdown(f"**Notes ({target})**")
+                st.markdown(st.session_state.notes_tr)
+            # Quiz
+            st.markdown('<div class="yb-section-h">Quiz</div>', unsafe_allow_html=True)
+            n_q = st.slider("Number of questions", 3, 10, 5, key="nq")
+            if st.button("Generate quiz", type="primary"):
+                full_text = "\n".join(d.page_content for d in docs)
+                with st.spinner("Creating quiz..."):
+                    try:
+                        st.session_state.quiz_data = utils.build_quiz_data(llm, full_text, main_type, n=n_q)
+                        st.session_state.quiz_done = False
+                    except Exception as e:
+                        utils.log_error("quiz", e)
+                        st.error("Quiz generation failed.")
+            if st.session_state.get("quiz_data"):
+                for i, q in enumerate(st.session_state.quiz_data):
+                    st.markdown(f"**Q{i + 1}. {q['question']}**")
+                    st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
+                    if st.session_state.get("quiz_done"):
+                        picked = st.session_state.get(f"quiz_a_{i}")
+                        correct = picked == q["options"][q["answer"]]
+                        st.markdown("Correct!" if correct else f"Wrong ? answer: **{q['options'][q['answer']]}**")
+                        st.caption(q["explanation"])
+                c1, c2 = st.columns(2)
+                if c1.button("Check answers"):
+                    st.session_state.quiz_done = True
+                    st.rerun()
+                if st.session_state.get("quiz_done"):
+                    score = sum(1 for i, q in enumerate(st.session_state.quiz_data)
+                                if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]])
+                    c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
+
+    with right:
+        st.markdown('<div class="yb-section-h">Ask about this video</div>', unsafe_allow_html=True)
         history = get_session_history(st.session_state.active_chat)
-        for i, msg in enumerate(history.messages):
-            with st.chat_message("user" if i % 2 == 0 else "assistant"):
-                st.markdown(msg.content)
+        chat_box = st.container(height=420, border=True)
+        with chat_box:
+            if not history.messages:
+                st.markdown('<div class="yb-empty"><h3>Start a conversation</h3>'
+                            '<p>Ask anything about the loaded video.</p></div>', unsafe_allow_html=True)
+                for sq in ["What is the main argument of this video?",
+                           "Explain the key concepts in simple terms.",
+                           "What examples does the speaker give?",
+                           "Summarize the video in five bullet points."]:
+                    if st.button(sq, key=f"sq_{sq[:12]}"):
+                        st.session_state._pending_q = sq
+                        st.rerun()
+            for i, msg in enumerate(history.messages):
+                with st.chat_message("user" if i % 2 == 0 else "assistant"):
+                    st.markdown(msg.content)
+        pending = st.session_state.pop("_pending_q", None)
         user_input = st.chat_input("Ask about the video(s):")
+        if pending:
+            user_input = pending
         if user_input:
             if len(user_input) > 2000:
                 st.error("Question too long (max 2000 chars).")
@@ -491,125 +801,131 @@ if st.session_state.video_docs:
                             st.markdown(response["answer"])
                     except Exception as e:
                         utils.log_error("chat answer", e)
-                        st.error("Sorry, that answer failed. The error was logged — see Diagnostics in the sidebar.")
+                        st.error("Sorry, that answer failed. See Diagnostics in the sidebar.")
                 st.rerun()
 
-    main_type = content_types[0] if content_types else "general"
-
-    with tab_summary:
-        level = st.radio("Summary length", ["TL;DR", "Short", "Detailed"], horizontal=True)
-        if st.button("Generate summary"):
-            full_text = "\n".join(d.page_content for d in docs)
-            with st.spinner("Summarizing..."):
+    # sidebar content (below main) ? keep minimal
+    with st.sidebar:
+        st.markdown("**Videos**")
+        raw_urls = st.text_area("URLs", height=90, key="raw_urls_box", label_visibility="collapsed",
+                                placeholder="https://www.youtube.com/watch?v=...")
+        if st.button("Load videos", type="primary", use_container_width=True):
+            if (raw_urls or "").strip():
                 try:
-                    st.session_state.summary = utils.build_summary(llm, full_text, level, main_type)
-                except Exception as e:
-                    utils.log_error("summary", e)
-                    st.error("Summary failed. The error was logged — see Diagnostics in the sidebar.")
-        if st.session_state.get("summary"):
-            st.markdown(st.session_state.summary)
-            st.download_button("Download summary (.md)", st.session_state.summary,
-                               file_name="summary.md", mime="text/markdown")
-
-    with tab_quiz:
-        st.caption(f"Quiz adapts to this content: {main_type}. Answer, then check your score with explanations.")
-        n_q = st.slider("Number of questions", 3, 10, 5)
-        if st.button("Generate quiz"):
-            full_text = "\n".join(d.page_content for d in docs)
-            with st.spinner("Creating quiz..."):
-                try:
-                    st.session_state.quiz_data = utils.build_quiz_data(llm, full_text, main_type, n=n_q)
-                    st.session_state.quiz_done = False
-                except Exception as e:
-                    utils.log_error("quiz", e)
-                    st.error("Quiz generation failed. The error was logged — see Diagnostics in the sidebar.")
-        if st.session_state.quiz_data:
-            for i, q in enumerate(st.session_state.quiz_data):
-                st.markdown(f"**Q{i + 1}. {q['question']}**")
-                st.radio(f"q{i}", q["options"], index=None, key=f"quiz_a_{i}", label_visibility="collapsed")
-                if st.session_state.quiz_done:
-                    picked = st.session_state.get(f"quiz_a_{i}")
-                    correct = picked == q["options"][q["answer"]]
-                    st.markdown("Correct!" if correct else f"Wrong — answer: **{q['options'][q['answer']]}**")
-                    st.caption(q["explanation"])
-            c1, c2 = st.columns(2)
-            if c1.button("Check answers"):
-                st.session_state.quiz_done = True
+                    st.query_params["urls"] = raw_urls
+                except Exception:
+                    pass
+                video_ids = []
+                for line in raw_urls.splitlines()[:50]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if utils.is_playlist_url(line):
+                        for entry in utils.expand_playlist(line):
+                            vid = utils.extract_video_id(str(entry)) or str(entry)
+                            if vid:
+                                video_ids.append(vid)
+                    else:
+                        vid = utils.extract_video_id(line)
+                        if vid:
+                            video_ids.append(vid)
+                video_ids = list(dict.fromkeys(video_ids))[:utils.MAX_VIDEOS]
+                if video_ids:
+                    load_video_ids(video_ids, utils.LANGUAGES[st.session_state.get("lang_choice", "Auto (any available)")])
+                    st.rerun()
+                else:
+                    st.error("No valid video IDs found.")
+            else:
+                st.warning("Paste a YouTube link first.")
+        lang_choice = st.selectbox("Transcript language", list(utils.LANGUAGES), index=0, key="lang_choice")
+        st.session_state.compare_mode = st.checkbox("Multi-video comparison mode", value=st.session_state.get("compare_mode", False), key="compare_mode")
+        st.markdown("**Chats**")
+        if st.button("+ New chat", use_container_width=True):
+            new_chat()
+            st.rerun()
+        chat_ids = list(st.session_state.chat_names)
+        if chat_ids:
+            current = st.session_state.active_chat
+            picked = st.radio("Switch chat", chat_ids,
+                              index=chat_ids.index(current) if current in chat_ids else 0,
+                              format_func=lambda c: f"{st.session_state.chat_names[c]}",
+                              label_visibility="collapsed")
+            if picked != st.session_state.active_chat:
+                st.session_state.active_chat = picked
                 st.rerun()
-            if st.session_state.quiz_done:
-                score = sum(
-                    1 for i, q in enumerate(st.session_state.quiz_data)
-                    if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]]
-                )
-                c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
-
-    with tab_notes:
-        if st.button("Generate study notes"):
-            full_text = "\n".join(d.page_content for d in docs)
-            with st.spinner("Summarizing..."):
-                try:
-                    st.session_state.notes = utils.build_notes(llm, full_text, main_type)
-                except Exception as e:
-                    utils.log_error("notes", e)
-                    st.error("Notes generation failed. The error was logged — see Diagnostics in the sidebar.")
-        if st.session_state.notes:
-            st.markdown(st.session_state.notes)
-            c1, c2 = st.columns(2)
-            c1.download_button("Download notes (.md)", st.session_state.notes,
-                               file_name="study_notes.md", mime="text/markdown")
-            try:
-                c2.download_button("Download notes (.pdf)", utils.notes_to_pdf(st.session_state.notes),
-                                   file_name="study_notes.pdf", mime="application/pdf")
-            except Exception:
-                c2.info("Install fpdf2 for PDF export: pip install fpdf2")
-
-        st.subheader("Key moments")
-        for m in utils.build_key_moments(docs):
-            st.markdown(f"[{int(m['start'])}s]({m['link']}) — {m['snippet']}")
-
-        history = get_session_history(st.session_state.active_chat)
-        chat_md = "\n\n".join(
-            f"**{'You' if i % 2 == 0 else 'Assistant'}:** {m.content}"
-            for i, m in enumerate(history.messages)
-        )
-        if chat_md:
-            st.download_button("Download chat history (.md)", chat_md,
-                               file_name="chat_history.md", mime="text/markdown")
-
-    with tab_translate:
-        st.caption("Translate the generated summary or notes into another language.")
-        target = st.selectbox("Target language", utils.TARGET_LANGS, index=0)
-        c1, c2 = st.columns(2)
-        if c1.button("Translate summary", disabled=not st.session_state.get("summary")):
-            with st.spinner(f"Translating summary to {target}..."):
-                try:
-                    st.session_state.summary_tr = utils.translate_text(llm, st.session_state.summary, target)
-                except Exception as e:
-                    utils.log_error("translate summary", e)
-                    st.error("Translation failed. The error was logged — see Diagnostics.")
-        if c2.button("Translate notes", disabled=not st.session_state.get("notes")):
-            with st.spinner(f"Translating notes to {target}..."):
-                try:
-                    st.session_state.notes_tr = utils.translate_text(llm, st.session_state.notes, target)
-                except Exception as e:
-                    utils.log_error("translate notes", e)
-                    st.error("Translation failed. The error was logged — see Diagnostics.")
-        if not st.session_state.get("summary") and not st.session_state.get("notes"):
-            st.info("Generate a summary or notes first.")
-        if st.session_state.get("summary_tr"):
-            st.subheader(f"Summary ({target})")
-            st.markdown(st.session_state.summary_tr)
-            st.download_button("Download translation (.md)", st.session_state.summary_tr,
-                               file_name=f"summary_{target}.md", mime="text/markdown")
-        if st.session_state.get("notes_tr"):
-            st.subheader(f"Notes ({target})")
-            st.markdown(st.session_state.notes_tr)
-            st.download_button("Download translation (.md)", st.session_state.notes_tr,
-                               file_name=f"notes_{target}.md", mime="text/markdown")
-
-    with tab_guide:
-        st.markdown(utils.GUIDE_MD)
+        if st.session_state.auth_user:
+            if st.button("Logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            st.caption("Guest mode ? auto-saved in this browser.")
+        with st.expander("Diagnostics"):
+            st.caption(f"Backend: {provider} / {model}")
+            st.caption(f"Index: {len(st.session_state.video_ids)} video(s), {len(st.session_state.video_docs)} chunks")
+            st.code(utils.read_recent_logs(20), language="text")
 
     persist_user_state()
+
 else:
-    st.info("Load at least one video from the sidebar to start chatting.")
+    # Empty state for guests/accounts with no video
+    st.markdown('<div class="yb-empty"><h3>Your workspace is ready</h3>'
+                '<p>Load a video from the sidebar to unlock chat, summary, notes, and quiz.</p></div>',
+                unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown("**Videos**")
+        raw_urls = st.text_area("URLs", height=90, key="raw_urls_box", label_visibility="collapsed",
+                                placeholder="https://www.youtube.com/watch?v=...")
+        if st.button("Load videos", type="primary", use_container_width=True):
+            if (raw_urls or "").strip():
+                try:
+                    st.query_params["urls"] = raw_urls
+                except Exception:
+                    pass
+                video_ids = []
+                for line in raw_urls.splitlines()[:50]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if utils.is_playlist_url(line):
+                        for entry in utils.expand_playlist(line):
+                            vid = utils.extract_video_id(str(entry)) or str(entry)
+                            if vid:
+                                video_ids.append(vid)
+                    else:
+                        vid = utils.extract_video_id(line)
+                        if vid:
+                            video_ids.append(vid)
+                video_ids = list(dict.fromkeys(video_ids))[:utils.MAX_VIDEOS]
+                if video_ids:
+                    load_video_ids(video_ids, utils.LANGUAGES[st.session_state.get("lang_choice", "Auto (any available)")])
+                    st.rerun()
+                else:
+                    st.error("No valid video IDs found.")
+            else:
+                st.warning("Paste a YouTube link first.")
+        lang_choice = st.selectbox("Transcript language", list(utils.LANGUAGES), index=0, key="lang_choice")
+        st.session_state.compare_mode = st.checkbox("Multi-video comparison mode", value=st.session_state.get("compare_mode", False), key="compare_mode")
+        if st.session_state.auth_user:
+            if st.button("Logout", use_container_width=True):
+                persist_user_state()
+                st.session_state.auth_user = None
+                st.session_state.guest = False
+                st.session_state.guest_sid = None
+                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
+                          "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            st.caption("Guest mode ? auto-saved in this browser.")
+        with st.expander("Diagnostics"):
+            st.caption(f"Backend: {provider} / {model}")
+            st.caption(f"Index: {len(st.session_state.video_ids)} video(s), {len(st.session_state.video_docs)} chunks")
+            st.code(utils.read_recent_logs(20), language="text")
+    persist_user_state()
+
