@@ -598,7 +598,7 @@ if st.session_state.video_docs:
         system_prompt = (
             "You compare what different videos say. "
             f"{scope} Compare and contrast perspectives across the loaded videos. "
-            f"{cite_rules} If the answer isn't in the context, say so.\n\n{{context}}"
+            f"{cite_rules} If the answer isn't in the context, say so.\n\n{context}"
         )
     else:
         system_prompt = (
@@ -606,7 +606,7 @@ if st.session_state.video_docs:
             f"{scope} Answer helpfully and concretely from the retrieved context ? "
             "no hedging, no 'as an AI'. "
             f"{cite_rules} If the answer isn't in the context, say what you do know "
-            "from the videos instead of refusing.\n\n{{context}}"
+            "from the videos instead of refusing.\n\n{context}"
         )
     qa_prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
