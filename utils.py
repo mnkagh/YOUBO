@@ -413,7 +413,7 @@ def _transcribe_cloud(audio_path: str) -> tuple:
             continue
         start = (ts[0] if ts else 0) or 0
         end = (ts[1] if ts and len(ts) > 1 else start) or start
-        snippets.append({"text": text.strip(), "start": start,
+        snippets.append({"text": " ".join(text.split()), "start": start,
                          "duration": max(0.0, end - start)})
     if not snippets:
         raise RuntimeError("Cloud transcription came back empty.")
@@ -439,7 +439,7 @@ def fetch_transcript(video_id: str, language: str = "auto") -> tuple:
     if transcript is None:
         raise RuntimeError("No captions exist for this video.")
     data = transcript.fetch()
-    snippets = [{"text": s.text, "start": s.start, "duration": s.duration} for s in data]
+    snippets = [{"text": " ".join((s.text or "").split()), "start": s.start, "duration": s.duration} for s in data]
     return snippets, transcript.language
 
 
@@ -533,7 +533,7 @@ def build_notes(llm, transcript_text: str, content_type: str = "general", max_ch
         "educational": "Turn this transcript into clean, structured study notes in markdown with headings, bullet points, and key takeaways.",
         "general": "Turn this video transcript into clean, structured notes in markdown with headings, bullet points, and key takeaways.",
     }[content_type]
-    return llm.invoke(f"{style}\n\n{transcript_text[:max_chars]}").content
+    return llm.invoke(f"{style}\nRespond in the same language as the transcript.\n\n{transcript_text[:max_chars]}").content
 
 
 def build_summary(llm, transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:
@@ -546,7 +546,9 @@ def build_summary(llm, transcript_text: str, level: str, content_type: str = "ge
             "gaming": "Focus on what happens and key moments. ",
             "educational": "Focus on concepts taught. ",
             "general": ""}[content_type]
-    prompt = f"{hint}{instructions.get(level, instructions['Short'])}\n\n{transcript_text[:max_chars]}"
+    prompt = (f"{hint}{instructions.get(level, instructions['Short'])}\n"
+             "Respond in the same language as the transcript.\n\n"
+             f"{transcript_text[:max_chars]}")
     return llm.invoke(prompt).content
 
 
@@ -554,7 +556,7 @@ def build_quiz(llm, transcript_text: str, n: int = 5, max_chars: int = 12000) ->
     prompt = (
         f"Based on this YouTube transcript, create a quiz with {n} multiple-choice questions. "
         "Each question must have options A-D, the correct answer marked, and a one-line explanation. "
-        "Format in markdown.\n\n" + transcript_text[:max_chars]
+        "Format in markdown. Respond in the same language as the transcript.\n\n" + transcript_text[:max_chars]
     )
     return llm.invoke(prompt).content
 
@@ -573,7 +575,8 @@ def build_quiz_data(llm, transcript_text: str, content_type: str = "general", n:
         f"Based on the transcript below, write {n} multiple-choice questions ({flavor}). "
         "Reply with ONLY a valid JSON array, no markdown fences, no commentary. "
         'Each item: {"question": "...", "options": ["...", "...", "...", "..."], '
-        '"answer": 0-3 index of the correct option, "explanation": "one line"}.\n\n'
+        '"answer": 0-3 index of the correct option, "explanation": "one line"}.\n'
+        "Respond in the same language as the transcript.\n\n"
         + transcript_text[:max_chars]
     )
     raw = llm.invoke(prompt).content.strip()
@@ -671,3 +674,143 @@ def notes_to_pdf(notes_md: str) -> bytes:
         safe = line.encode("latin-1", "replace").decode("latin-1")
         pdf.multi_cell(0, 7, safe)
     return bytes(pdf.output())
+
+TTS_VOICES = {
+    "Hindi": "hi-IN-SwaraNeural", "Spanish": "es-ES-ElviraNeural",
+    "French": "fr-FR-DeniseNeural", "German": "de-DE-KatjaNeural",
+    "Portuguese": "pt-BR-FranciscaNeural", "Arabic": "ar-SA-ZariyahNeural",
+    "Tamil": "ta-IN-PallaviNeural", "Telugu": "te-IN-ShrutiNeural",
+    "Bengali": "bn-IN-TanishaaNeural", "Marathi": "mr-IN-AarohiNeural",
+    "Japanese": "ja-JP-NanamiNeural", "Korean": "ko-KR-SunHiNeural",
+    "English": "en-US-AriaNeural",
+}
+
+MAX_DUB_SECONDS = 20 * 60  # dubbing capped at 20-min videos
+
+
+
+def translate_prompt(text: str, target_lang: str, max_chars: int = 12000) -> str:
+    return (
+        f"Translate the following markdown content into {target_lang}. "
+        "Keep all markdown formatting, headings, bullet points and links intact. "
+        "Reply with ONLY the translation.\n\n" + text[:max_chars]
+    )
+
+def translate_transcript(llm, docs: list, target_lang: str, batch_chunks: int = 4,
+                         progress_cb=None) -> list:
+    """Translate the whole video, batch by batch. Each translated block keeps
+    the timestamp link of where it starts, so the full video reads in the
+    target language with clickable timestamps."""
+    blocks = []
+    batches = [docs[i:i + batch_chunks] for i in range(0, len(docs), batch_chunks)]
+    for n, batch in enumerate(batches, 1):
+        text = "\n\n".join(d.page_content for d in batch)
+        tr = llm.invoke(translate_prompt(text, target_lang, max_chars=15000)).content
+        blocks.append({
+            "start": batch[0].metadata.get("start", 0),
+            "link": batch[0].metadata.get("link", ""),
+            "video_id": batch[0].metadata.get("video_id", ""),
+            "text": tr,
+        })
+        if progress_cb:
+            progress_cb(n / len(batches))
+    return blocks
+
+def dub_video(video_id: str, llm, target_lang: str, source_lang: str = "auto",
+              progress_cb=None) -> bytes:
+    """Make the SAME video speak a new language: captions -> translate ->
+    AI voiceover -> muxed with the original picture. Returns MP4 bytes.
+    Voiceover style (not lip-synced); original audio replaced."""
+    import subprocess
+    import tempfile
+    import yt_dlp
+    import imageio_ffmpeg
+
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    voice = TTS_VOICES.get(target_lang)
+    if not voice:
+        raise ValueError(f"No voice for {target_lang}.")
+
+    def progress(f, msg=""):
+        if progress_cb:
+            progress_cb(f, msg)
+
+    progress(0.02, "Getting captions...")
+    snippets, _ = fetch_transcript(video_id, source_lang)
+
+    total_len = (snippets[-1]["start"] + snippets[-1].get("duration", 0)) if snippets else 0
+    if total_len > MAX_DUB_SECONDS:
+        raise RuntimeError(
+            f"This video is {int(total_len // 60)} min — dubbing is capped at "
+            f"{MAX_DUB_SECONDS // 60} min. Translate the transcript text instead.")
+
+    # Group captions into ~12s voiceover windows.
+    windows, cur, span = [], [], 0.0
+    for s in snippets:
+        cur.append(s)
+        span = (s["start"] + s.get("duration", 0)) - cur[0]["start"]
+        chars = sum(len(x["text"]) for x in cur)
+        if span >= 12 or chars >= 400:
+            windows.append(cur)
+            cur = []
+    if cur:
+        windows.append(cur)
+
+    tmpdir = tempfile.mkdtemp(prefix="youbo_dub_")
+    try:
+        import asyncio
+        import edge_tts
+
+        async def _tts_all(items):
+            async def one(text, path):
+                await edge_tts.Communicate(text, voice).save(path)
+            await asyncio.gather(*[one(t, p) for t, p in items])
+
+        progress(0.08, "Translating...")
+        jobs = []
+        for n, w in enumerate(windows, 1):
+            src = " ".join(s["text"] for s in w)
+            tr = llm.invoke(translate_prompt(src, target_lang, max_chars=2000)).content.strip()
+            jobs.append((tr, os.path.join(tmpdir, f"w{n:03d}.mp3")))
+            progress(0.08 + 0.30 * n / len(windows), f"Translating... {n}/{len(windows)}")
+
+        progress(0.40, "Recording voiceover...")
+        asyncio.run(_tts_all(jobs))
+        progress(0.65, "Downloading original video...")
+        with yt_dlp.YoutubeDL({
+            "format": "bv*[height<=720]+ba/b[height<=720]/b",
+            "quiet": True, "merge_output_format": "mp4",
+            "ffmpeg_location": ffmpeg,
+            "outtmpl": os.path.join(tmpdir, "src.%(ext)s"),
+        }) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
+            src_path = ydl.prepare_filename(info)
+            if not os.path.exists(src_path):
+                base, _ = os.path.splitext(src_path)
+                src_path = base + ".mp4"
+
+        progress(0.75, "Mixing voiceover with picture...")
+        inputs, filters, mix = [], [], []
+        for n, (tr, path) in enumerate(jobs):
+            inputs += ["-i", path]
+            delay = int(windows[n][0]["start"] * 1000)
+            filters.append(f"[{n}:a]adelay={delay}|{delay}[a{n}]")
+            mix.append(f"[a{n}]")
+        filters.append(f"{''.join(mix)}amix=inputs={len(jobs)}:normalize=0[aout]")
+        dubbed = os.path.join(tmpdir, "dubbed.m4a")
+        subprocess.run([ffmpeg, "-y", *inputs, "-filter_complex", ";".join(filters),
+                        "-map", "[aout]", "-c:a", "aac", dubbed],
+                       check=True, capture_output=True)
+        progress(0.88, "Final video...")
+        out_path = os.path.join(tmpdir, "dubbed.mp4")
+        subprocess.run([ffmpeg, "-y", "-i", src_path, "-i", dubbed,
+                        "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                        "-c:a", "aac", "-shortest", out_path],
+                       check=True, capture_output=True)
+        progress(1.0, "Done.")
+        with open(out_path, "rb") as f:
+            return f.read()
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+

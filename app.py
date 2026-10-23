@@ -21,16 +21,10 @@ if os.getenv("HF_TOKEN"):
 st.set_page_config(page_title="YOUBO", page_icon="▶", layout="wide",
                    initial_sidebar_state="expanded")
 
-# ─── Premium dark theme (YouTube Studio + minimal research assistant) ──────────
-BG        = "#111111"
-BG2       = "#181818"
-SURFACE   = "#222222"
-BORDER    = "#333333"
-TEXT      = "#F5F5F5"
-MUTED     = "#A3A3A3"
-ACCENT    = "#FF4545"
-SUCCESS   = "#22c55e"
-ERROR     = "#ef4444"
+
+# Centralized theme tokens + component styles.
+# Variables are defined per-theme below; THEME_CSS references them so both
+# themes share one component stylesheet.
 
 THEME_CSS = """
 <style>
@@ -39,86 +33,151 @@ html, body, .stApp, [data-testid="stAppViewContainer"] { font-family: 'Inter', s
 footer, [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none !important; visibility: hidden !important; }
 [data-testid="stElementToolbar"], a.headerlink { display: none !important; }
 .block-container { max-width: 1440px; padding-top: .6rem; padding-bottom: 2rem; }
-.stButton > button { border-radius: 8px; font-weight: 600; transition: all .15s ease; }
-.stButton > button[kind="primary"] { background: #FF4545 !important; color: #fff !important; border: none !important; }
-.stButton > button[kind="primary"]:hover { background: #ff5a5a !important; }
-.stButton > button:hover { border-color: #FF4545 !important; }
+
+/* ---- shared structural + token-driven rules ---- */
+body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main, .main, .block-container { background: var(--yb-bg, #111111) !important; }
+.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: var(--yb-text, #F5F5F5) !important; }
+
+.stButton > button { border-radius: 8px; font-weight: 600; transition: all .15s ease;
+  background: var(--yb-surface, #181818) !important; color: var(--yb-text, #F5F5F5) !important;
+  border: 1px solid var(--yb-border, #333333) !important; }
+.stButton > button[kind="primary"] { background: var(--yb-primary-btn-bg, #FF4545) !important;
+  color: var(--yb-primary-btn-text, #ffffff) !important; border: none !important; }
+.stButton > button[kind="primary"]:hover { background: var(--yb-accent-hover, #ff5a5a) !important; }
+.stButton > button:hover { border-color: var(--yb-accent, #FF4545) !important; }
+
 .stTextInput > div > div > input, .stTextArea textarea, [data-baseweb="input"] input {
-  background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important;
-  border-radius: 8px !important; }
-.stTextInput > div > div > input:focus, .stTextArea textarea:focus { border-color: #FF4545 !important; box-shadow: 0 0 0 1px #FF4545 !important; }
-.stChatMessage { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 12px !important; padding: .8rem 1rem !important; }
-[data-testid="stChatInput"] textarea { background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important; border-radius: 10px !important; }
-[data-testid="stChatInput"] button { color: #FF4545 !important; }
-.stTabs [data-baseweb="tab-list"] { background: #181818 !important; border-radius: 10px; padding: .2rem; gap: .2rem; border: 1px solid #333333; }
-.stTabs [data-baseweb="tab"] { color: #A3A3A3 !important; font-weight: 600; border-radius: 8px; padding: .45rem .95rem; }
-.stTabs [aria-selected="true"] { color: #F5F5F5 !important; background: #222222 !important; }
+  background: var(--yb-input-bg, #222222) !important; color: var(--yb-input-text, #F5F5F5) !important;
+  border: 1px solid var(--yb-border, #333333) !important; border-radius: 8px !important; }
+.stTextInput > div > div > input:focus, .stTextArea textarea:focus {
+  border-color: var(--yb-focus, #FF4545) !important; box-shadow: 0 0 0 1px var(--yb-focus, #FF4545) !important; }
+
+.stChatMessage { background: var(--yb-surface, #181818) !important;
+  border: 1px solid var(--yb-border, #333333) !important; border-radius: 12px !important;
+  padding: .8rem 1rem !important; }
+[data-testid="stChatInput"] textarea { background: var(--yb-input-bg, #222222) !important;
+  color: var(--yb-input-text, #F5F5F5) !important; border: 1px solid var(--yb-border, #333333) !important;
+  border-radius: 10px !important; -webkit-text-fill-color: var(--yb-input-text, #F5F5F5) !important; }
+[data-testid="stChatInput"] button { color: var(--yb-accent, #FF4545) !important; }
+
+.stTabs [data-baseweb="tab-list"] { background: var(--yb-surface-tablist, #181818) !important;
+  border-radius: 10px; padding: .2rem; gap: .2rem; border: 1px solid var(--yb-border, #333333); }
+.stTabs [data-baseweb="tab"] { color: var(--yb-muted, #A3A3A3) !important; font-weight: 600;
+  border-radius: 8px; padding: .45rem .95rem; }
+.stTabs [aria-selected="true"] { color: var(--yb-selected-tab-text, #F5F5F5) !important;
+  background: var(--yb-selected-tab-bg, #222222) !important; }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none !important; }
-.stExpander { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 10px !important; }
-.stExpander summary { color: #F5F5F5 !important; font-weight: 600; }
-.stMetric { background: #181818 !important; border: 1px solid #333333 !important; border-radius: 10px; padding: .6rem .9rem; }
-.stMetric label { color: #A3A3A3 !important; font-size: .78rem !important; }
-.stMetric [data-testid="stMetricValue"] { color: #F5F5F5 !important; }
-code, pre, [data-testid="stCodeBlock"] { background: #181818 !important; border: 1px solid #333333; border-radius: 8px; }
-[data-testid="stCodeBlock"] code { color: #F5F5F5 !important; }
+
+.stExpander { background: var(--yb-surface, #181818) !important;
+  border: 1px solid var(--yb-border, #333333) !important; border-radius: 10px !important; }
+.stExpander summary { color: var(--yb-text, #F5F5F5) !important; font-weight: 600; }
+.stExpander summary span, .stExpander p, .stExpander span { color: var(--yb-text, #F5F5F5) !important; }
+
+.stMetric { background: var(--yb-surface, #181818) !important;
+  border: 1px solid var(--yb-border, #333333) !important; border-radius: 10px; padding: .6rem .9rem; }
+.stMetric label { color: var(--yb-muted, #A3A3A3) !important; font-size: .78rem !important; }
+.stMetric [data-testid="stMetricValue"] { color: var(--yb-text, #F5F5F5) !important; }
+.stMetric div { color: var(--yb-text, #F5F5F5) !important; }
+
+code, pre, [data-testid="stCodeBlock"] { background: var(--yb-surface-code, #181818) !important;
+  border: 1px solid var(--yb-border, #333333); border-radius: 8px; }
+[data-testid="stCodeBlock"] code { color: var(--yb-text, #F5F5F5) !important; }
+
 .stAlert { border-radius: 10px; }
-.stSelectbox [data-baseweb="select"] > div { background: #222222 !important; border-color: #333333 !important; color: #F5F5F5 !important; }
-.stRadio label, .stCheckbox label { color: #F5F5F5 !important; }
-.stSlider label { color: #A3A3A3 !important; }
-hr { border-color: #333333 !important; }
-[data-testid="stSidebar"] { background: #181818 !important; border-right: 1px solid #333333; }
+.stSelectbox [data-baseweb="select"] > div { background: var(--yb-input-bg, #222222) !important;
+  border-color: var(--yb-border, #333333) !important; color: var(--yb-input-text, #F5F5F5) !important; }
+.stRadio label, .stCheckbox label, .stSelectbox label { color: var(--yb-text, #F5F5F5) !important; }
+.stSlider label { color: var(--yb-muted, #A3A3A3) !important; }
+hr { border-color: var(--yb-border, #333333) !important; }
+
+[data-testid="stSidebar"] { background: var(--yb-surface-sidebar, #181818) !important;
+  border-right: 1px solid var(--yb-border, #333333); }
 [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3, [data-testid="stSidebar"] .stRadio label { color: #F5F5F5 !important; }
-[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #222222 !important; color: #F5F5F5 !important; -webkit-text-fill-color: #F5F5F5 !important; border: 1px solid #333333 !important; }
-[data-testid="stSidebar"] div[data-baseweb="select"] > div { background: #222222 !important; color: #F5F5F5 !important; border-color: #333333 !important; }
-[data-testid="stSidebar"] div[data-baseweb="select"] span, [data-testid="stSidebar"] div[data-baseweb="select"] svg { color: #F5F5F5 !important; fill: #F5F5F5 !important; }
+[data-testid="stSidebar"] h3, [data-testid="stSidebar"] .stRadio label { color: var(--yb-text, #F5F5F5) !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea {
+  background: var(--yb-input-bg, #222222) !important; color: var(--yb-input-text, #F5F5F5) !important;
+  -webkit-text-fill-color: var(--yb-input-text, #F5F5F5) !important; border: 1px solid var(--yb-border, #333333) !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+  background: var(--yb-input-bg, #222222) !important; color: var(--yb-input-text, #F5F5F5) !important;
+  border-color: var(--yb-border, #333333) !important; }
+[data-testid="stSidebar"] div[data-baseweb="select"] span,
+[data-testid="stSidebar"] div[data-baseweb="select"] svg { color: var(--yb-input-text, #F5F5F5) !important;
+  fill: var(--yb-input-text, #F5F5F5) !important; }
+
+/* ---- YOUBO custom components (token-driven) ---- */
 .yb-header { display: flex; align-items: center; gap: 1.1rem; padding: .35rem 0 .85rem;
-  border-bottom: 1px solid #333333; margin-bottom: 1rem; }
+  border-bottom: 1px solid var(--yb-border, #333333); margin-bottom: 1rem; }
 .yb-hdr-left { display: flex; align-items: center; gap: .9rem; }
 .yb-hdr-right { display: flex; align-items: center; gap: .6rem; margin-left: auto; }
-.yb-logo { font-weight: 700; font-size: 1.15rem; letter-spacing: .08em; color: #F5F5F5; display: flex; align-items: center; gap: .4rem; }
-.yb-logo span { color: #FF4545; }
-.yb-nav { color: #A3A3A3; font-size: .88rem; font-weight: 500; }
+.yb-logo { font-weight: 700; font-size: 1.15rem; letter-spacing: .08em;
+  color: var(--yb-text, #F5F5F5); display: flex; align-items: center; gap: .4rem; }
+.yb-logo span { color: var(--yb-accent, #FF4545); }
+.yb-nav { color: var(--yb-muted, #A3A3A3); font-size: .88rem; font-weight: 500; }
 .yb-hero { text-align: center; padding: 5rem 1rem 3rem; }
 .yb-hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -.02em;
-  margin: 0 0 .6rem; border: none !important; }
-.yb-hero p { color: #A3A3A3; font-size: 1.05rem; max-width: 560px; margin: 0 auto 2rem; }
+  margin: 0 0 .6rem; border: none !important; color: var(--yb-text, #F5F5F5) !important; }
+.yb-hero p { color: var(--yb-muted, #A3A3A3); font-size: 1.05rem; max-width: 560px; margin: 0 auto 2rem; }
 .yb-chip { display: inline-block; padding: .35rem .85rem; margin: .25rem; border-radius: 999px;
-  background: #181818; border: 1px solid #333333; color: #F5F5F5; font-size: .82rem;
-  cursor: pointer; transition: all .15s; }
-.yb-chip:hover { border-color: #FF4545; color: #FF4545; }
-.yb-card { background: #181818; border: 1px solid #333333; border-radius: 12px; padding: 1.1rem 1.25rem; }
-.yb-muted { color: #A3A3A3 !important; font-size: .88rem; }
-.yb-meta { display: flex; gap: .6rem; align-items: center; color: #A3A3A3; font-size: .82rem; }
+  background: var(--yb-surface, #181818); border: 1px solid var(--yb-border, #333333);
+  color: var(--yb-text, #F5F5F5); font-size: .82rem; cursor: pointer; transition: all .15s; }
+.yb-chip:hover { border-color: var(--yb-accent, #FF4545); color: var(--yb-accent, #FF4545); }
+.yb-card { background: var(--yb-surface, #181818); border: 1px solid var(--yb-border, #333333);
+  border-radius: 12px; padding: 1.1rem 1.25rem; }
+.yb-muted { color: var(--yb-muted, #A3A3A3) !important; font-size: .88rem; }
+.yb-meta { display: flex; gap: .6rem; align-items: center; color: var(--yb-muted, #A3A3A3); font-size: .82rem; }
+/* citation badge + download button: shared constants in BOTH themes */
 .yb-cite { display: inline-block; padding: .05rem .45rem; margin: 0 .15rem;
-  background: #2a1414; border: 1px solid #5a2020; color: #ff8a8a; border-radius: 6px;
-  font-size: .76rem; font-weight: 600; }
-.yb-section-h { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 .5rem; color: #F5F5F5; }
-.yb-empty { text-align: center; padding: 3rem 1rem; color: #A3A3A3; }
-.yb-empty h3 { color: #F5F5F5; margin-bottom: .4rem; }
-.yb-processing { background: #181818; border: 1px solid #333333; border-radius: 10px;
-  padding: .7rem .9rem; margin: .5rem 0; }
-.yb-processing .step { color: #A3A3A3; font-size: .85rem; padding: .15rem 0; }
-.yb-processing .step.done { color: #22c55e; }
-.yb-processing .step.active { color: #FF4545; }
+  background: var(--yb-cite-bg, #2a1414); border: 1px solid var(--yb-cite-border, #5a2020);
+  color: var(--yb-cite-text, #ff8a8a); border-radius: 6px; font-size: .76rem; font-weight: 600; }
+.stDownloadButton > button { background: var(--yb-download-bg, #2a1414) !important;
+  color: var(--yb-download-text, #ffb3b3) !important; border: 1px solid var(--yb-download-border, #5a2020) !important; }
+.yb-section-h { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 .5rem;
+  color: var(--yb-text, #F5F5F5); }
+.yb-empty { text-align: center; padding: 3rem 1rem; color: var(--yb-muted, #A3A3A3); }
+.yb-empty h3 { color: var(--yb-text, #F5F5F5); margin-bottom: .4rem; }
+.yb-processing { background: var(--yb-surface, #181818); border: 1px solid var(--yb-border, #333333);
+  border-radius: 10px; padding: .7rem .9rem; margin: .5rem 0; }
+.yb-processing .step { color: var(--yb-muted, #A3A3A3); font-size: .85rem; padding: .15rem 0; }
+.yb-processing .step.done { color: var(--yb-success, #22c55e); }
+.yb-processing .step.active { color: var(--yb-accent, #FF4545); }
 </style>
 """
 st.markdown(THEME_CSS, unsafe_allow_html=True)
 
-# Kill zombie widgets: if the browser serves a cached copy of the page
-# (back-forward cache), force a hard reload so inputs are live again.
-st.html(
-    "<script>window.addEventListener('pageshow', function (e) { "
-    "if (e.persisted) { window.location.reload(); } });</script>",
-)
-
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True  # dark by default
 
+# ---- DARK theme tokens ----
 DARK_CSS = """
 <style>
-.stApp, [data-testid="stAppViewContainer"] { background: #111111 !important; }
+:root, .stApp {
+  --yb-bg: #111111;
+  --yb-text: #F5F5F5;
+  --yb-muted: #A3A3A3;
+  --yb-surface: #181818;
+  --yb-surface-sidebar: #181818;
+  --yb-surface-code: #181818;
+  --yb-surface-tablist: #181818;
+  --yb-input-bg: #222222;
+  --yb-input-text: #F5F5F5;
+  --yb-border: #333333;
+  --yb-accent: #FF4545;
+  --yb-accent-hover: #ff5a5a;
+  --yb-success: #22c55e;
+  --yb-primary-btn-bg: #FF4545;
+  --yb-primary-btn-text: #ffffff;
+  --yb-selected-tab-bg: #222222;
+  --yb-selected-tab-text: #F5F5F5;
+  --yb-cite-bg: #2a1414;
+  --yb-cite-border: #5a2020;
+  --yb-cite-text: #ff8a8a;
+  --yb-download-bg: #2a1414;
+  --yb-download-border: #5a2020;
+  --yb-download-text: #ffb3b3;
+  --yb-focus: #FF4545;
+}
+body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main, .main, .block-container { background: #111111 !important; }
 .block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #F5F5F5 !important; }
 .stTextInput input, .stTextArea textarea { background: #222222 !important; color: #F5F5F5 !important; border: 1px solid #333333 !important; }
 .stChatMessage { background: #181818 !important; border: 1px solid #333333 !important; }
@@ -150,10 +209,37 @@ hr { border-color: #333333 !important; }
 if st.session_state.dark_mode:
     st.markdown(DARK_CSS, unsafe_allow_html=True)
 else:
-    # light mode: override surfaces to white-ish
+    # light mode: override surfaces to the light palette (shared exceptions retained)
     st.markdown("""
 <style>
-.stApp, [data-testid="stAppViewContainer"] { background: #fafafa !important; }
+:root, .stApp {
+  --yb-bg: #fafafa;
+  --yb-text: #111;
+  --yb-muted: #595959;
+  --yb-surface: #ffffff;
+  --yb-surface-sidebar: #f5f5f5;
+  --yb-surface-code: #f5f5f5;
+  --yb-surface-tablist: #f0f0f0;
+  --yb-input-bg: #ffffff;
+  --yb-input-text: #111;
+  --yb-border: #ddd;
+  --yb-accent: #FF4545;
+  --yb-accent-hover: #ff5a5a;
+  --yb-success: #22c55e;
+  --yb-primary-btn-bg: #FF4545;
+  --yb-primary-btn-text: #ffffff;
+  --yb-selected-tab-bg: #222222;
+  --yb-selected-tab-text: #F5F5F5;
+  --yb-cite-bg: #2a1414;
+  --yb-cite-border: #5a2020;
+  --yb-cite-text: #ff8a8a;
+  --yb-download-bg: #2a1414;
+  --yb-download-border: #5a2020;
+  --yb-download-text: #ffb3b3;
+  --yb-focus: #FF4545;
+}
+body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main, .main { background: #fafafa !important; }
+.block-container { background: #fafafa !important; }
 .block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #111 !important; }
 .stTextInput input, .stTextArea textarea { background: #fff !important; color: #111 !important; border: 1px solid #ddd !important; }
 .stChatMessage { background: #fff !important; border: 1px solid #ddd !important; }
@@ -166,8 +252,15 @@ code, pre, [data-testid="stCodeBlock"] { background: #f5f5f5 !important; }
 [data-testid="stSidebar"] { background: #f5f5f5 !important; }
 [data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #fff !important; color: #111 !important; -webkit-text-fill-color: #111 !important; }
 .yb-card, .yb-processing { background: #fff !important; border-color: #ddd !important; }
+/* shared exceptions retained in light mode */
+.stButton > button[kind="primary"] { background: #FF4545 !important; color: #fff !important; border: none !important; }
+.stButton > button[kind="primary"]:hover { background: #ff5a5a !important; }
+.stTabs [aria-selected="true"] { color: #F5F5F5 !important; background: #222222 !important; }
+.stDownloadButton > button { background: #2a1414 !important; color: #ffb3b3 !important; border: 1px solid #5a2020 !important; }
+.yb-cite { background: #2a1414 !important; border-color: #5a2020 !important; color: #ff8a8a !important; }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ─── Header ───────────────────────────────────────────────────────────────────
 def state_owner() -> str | None:
@@ -220,40 +313,47 @@ def new_chat(name: str | None = None) -> str:
     return chat_id
 
 
-# ---------- Header: logo + nav (left), theme toggle + Sign in (top right) ----------
-_hc_left, _hc_right = st.columns([5, 5], vertical_alignment="top")
-with _hc_left:
+# ---------- Header: logo (center), controls (right) ----------
+_hc_left, _hc_mid, _hc_right = st.columns([3, 4, 3], vertical_alignment='top')
+with _hc_mid:
     st.markdown(
-        '<div class="yb-header" style="border-bottom:none;margin-bottom:0;padding-bottom:.6rem;">'
-        '<div class="yb-hdr-left">'
-        '<div class="yb-logo"><span>&#9654;</span>YOUBO</div>'
-        '<div class="yb-nav">Home &middot; History &middot; Saved</div>'
-        '</div></div>',
+        '<div class="yb-header" style="border-bottom:none;margin-bottom:0;padding-bottom:.6rem;"></div>',
         unsafe_allow_html=True,
     )
 with _hc_right:
-    _t_col, _u_col = st.columns([1, 3])
-    with _t_col:
-        if st.button("🌙" if st.session_state.dark_mode else "☀️", key="theme_toggle", help="Toggle theme"):
-            st.session_state.dark_mode = not st.session_state.dark_mode
-            persist_user_state()
-            st.rerun()
+    _u_col = st.columns([1])[0]
     with _u_col:
-        if st.session_state.get("auth_user"):
-            if st.button(f"👤 {st.session_state.auth_user}", key="top_logout", use_container_width=True):
+        on_landing = (st.session_state.get('auth_user') is None and not st.session_state.get('guest') and not st.session_state.get('show_auth'))
+        if st.session_state.get('auth_user'):
+            st.caption(f"\U0001F464 {st.session_state.auth_user}")
+            if st.button('Logout', key='top_logout'):
                 persist_user_state()
                 st.session_state.auth_user = None
                 st.session_state.guest = False
                 st.session_state.guest_sid = None
-                for k in ("store", "chat_names", "active_chat", "video_docs", "video_ids",
-                      "video_meta", "video_lang", "notes", "quiz_data", "raw_urls_box"):
+                for k in ('store','chat_names','active_chat','video_docs','video_ids','video_meta','video_lang','notes','quiz_data','raw_urls_box','video_snippets','translated_blocks','dubbed_mp4'):
                     st.session_state.pop(k, None)
                 st.rerun()
-        else:
-            if st.button("👤 Sign in", key="top_signin", type="primary", use_container_width=True):
-                st.session_state.show_auth = True
-                st.rerun()
-st.markdown('<div style="border-bottom:1px solid #333333;margin:.2rem 0 1.1rem;"></div>', unsafe_allow_html=True)
+        elif True:
+            pass
+
+if st.session_state.get("guest") or st.session_state.get("auth_user"):
+    _home_left = st.columns([3, 7])[0]
+    with _home_left:
+        if st.button("Go to home page", key="home_btn", help="Go to landing page"):
+            st.session_state.auth_user = None
+            st.session_state.guest = False
+            st.session_state.guest_sid = None
+            st.session_state.video_docs = []
+            st.session_state.video_ids = []
+            st.session_state.video_snippets = []
+            st.session_state.video_meta = {}
+            st.session_state.show_auth = False
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+            st.rerun()
 
 if "auth_user" not in st.session_state:
     st.session_state.auth_user = None
@@ -274,6 +374,12 @@ if "auth_user" not in st.session_state:
 
 if st.session_state.auth_user is None and not st.session_state.guest:
     if not st.session_state.get("show_auth"):
+        st.markdown(
+            '<div style="text-align:center;margin:2rem 0 1rem;">'
+            '<div class="yb-logo" style="justify-content:center;font-size:3rem;color:#FF4545;">'
+            '<span style="color:#FF4545;">&#9654;</span> YOUBO</div></div>',
+            unsafe_allow_html=True,
+        )
         st.markdown('<div class="yb-hero"><h1>Understand any video.</h1>'
                     '<p>Ask questions, explore ideas, and learn from YouTube videos. '
                     'Paste a link below to begin.</p></div>', unsafe_allow_html=True)
@@ -287,6 +393,9 @@ if st.session_state.auth_user is None and not st.session_state.guest:
                     st.rerun()
                 else:
                     st.warning("Paste a YouTube link first.")
+            if st.button("Sign in / Create account", use_container_width=True):
+                st.session_state.show_auth = True
+                st.rerun()
             _chips = "".join(
                 f'<span class="yb-chip">{c}</span>'
                 for c in ["Summarize this video", "Explain the key concepts",
@@ -380,7 +489,7 @@ except Exception as e:
 
 for key, default in [("store", {}), ("chat_names", {}), ("active_chat", None),
                      ("video_docs", []), ("video_ids", []), ("video_meta", {}),
-                     ("video_lang", ""), ("notes", None), ("quiz", None),
+                     ("video_lang", ""), ("video_snippets", []), ("translated_blocks", None), ("translated_lang", None), ("dubbed_mp4", None), ("dubbed_lang", None), ("notes", None), ("quiz", None),
                      ("quiz_data", None), ("quiz_done", False)]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -464,8 +573,6 @@ with st.sidebar:
         st.subheader("Loaded")
         for vid in st.session_state.video_ids:
             meta = st.session_state.video_meta.get(vid, {})
-            if meta.get("thumbnail"):
-                st.image(meta["thumbnail"], use_container_width=True)
             st.markdown(f"**{meta.get('title', vid)}**")
             duration = meta.get("duration") or 0
             st.caption(f"{meta.get('uploader', '')} · {duration // 60}m {duration % 60}s")
@@ -474,12 +581,16 @@ with st.sidebar:
 def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos...") -> bool:
     """Fetch transcripts + build index. Returns True on success."""
     all_docs, meta, langs = [], {}, []
+    st.session_state.video_snippets = []
     with st.status(label, expanded=True) as status:
         st.write("Fetching transcripts...")
         for vid in video_ids:
             try:
                 with utils.Timer(f"transcript {vid}"):
                     snippets, lang_name = utils.fetch_transcript(vid, lang_code)
+                    for sn in snippets:
+                        sn.setdefault("video", vid)
+                    st.session_state.video_snippets.extend(snippets)
                     all_docs.extend(utils.transcript_to_docs(vid, snippets))
                 langs.append(lang_name)
                 meta[vid] = utils.get_video_metadata(vid)
@@ -488,6 +599,9 @@ def load_video_ids(video_ids: list, lang_code: str, label: str = "Loading videos
                 st.write(f"No captions for {vid} — transcribing audio locally (slower, one-time)...")
                 try:
                     snippets, lang_name = utils.transcribe_audio(vid)
+                    for sn in snippets:
+                        sn.setdefault("video", vid)
+                    st.session_state.video_snippets.extend(snippets)
                     all_docs.extend(utils.transcript_to_docs(vid, snippets))
                     langs.append(lang_name)
                     meta[vid] = utils.get_video_metadata(vid)
@@ -593,26 +707,28 @@ if st.session_state.video_docs:
     scope = (
         f"You know ONLY these loaded video(s): {'; '.join(video_titles)}. "
         f"Content type(s): {', '.join(content_types)}. "
-        "If asked about videos, playlists, or links NOT in this list, say clearly "
-        "that only the loaded video(s) are available and name them. Never invent "
-        "video counts, links, or playlist contents."
+        "'This video' / 'the video' / 'it' always refers to one of the loaded "
+        "video(s) above. Answer from the retrieved context and name the video. "
+        "Only if the retrieved context is empty may you say the information is "
+        "not available. Never invent video counts, links, or playlist contents."
     )
     cite_rules = (
         "Cite every factual claim with the exact [Source](url) markdown link found "
-        "in the retrieved context. Never invent timestamps, never use any other "
-        "citation format (no brackets like ??, no footnotes)."
+        "in the retrieved context. The links include a timestamp (t=seconds); use "
+        "them to answer 'what happens at X seconds' questions. Never invent "
+        "timestamps, never use any other citation format (no brackets like ??, no footnotes)."
     )
     if st.session_state.get("compare_mode"):
         system_prompt = (
             "You compare what different videos say. "
             f"{scope} Compare and contrast perspectives across the loaded videos. "
-            f"{cite_rules} If the answer isn't in the context, say so.\n\n{context}"
+            f"{cite_rules} Answer concretely from the retrieved context.\n\n{context}"
         )
     else:
         system_prompt = (
             "You answer questions directly about YouTube video content. "
-            f"{scope} Answer helpfully and concretely from the retrieved context ? "
-            "no hedging, no 'as an AI'. "
+            f"{scope} Answer helpfully and concretely from the retrieved context; "
+            "no hedging, no 'as an AI', no refusing when context is present. "
             f"{cite_rules} If the answer isn't in the context, say what you do know "
             "from the videos instead of refusing.\n\n{context}"
         )
@@ -638,13 +754,29 @@ if st.session_state.video_docs:
         with st.container(border=True):
             if st.session_state.video_ids:
                 vid = st.session_state.video_ids[0]
-                st.video(f"https://www.youtube.com/watch?v={vid}")
+                import streamlit.components.v1 as _components
+                _player_html = (
+                    "<div id='yb-player'></div>"
+                    "<script>"
+                    "var tag=document.createElement('script');tag.src='https://www.youtube.com/iframe_api';"
+                    "var fs=document.getElementsByTagName('script')[0];fs.parentNode.insertBefore(tag,fs);"
+                    "var ybPlayer=null;"
+                    "function onYouTubeIframeAPIReady(){"
+                    "  ybPlayer=new YT.Player('yb-player',{height:'360',width:'100%',videoId:'" + vid + "',"
+                    "    playerVars:{playsinline:1,rel:0}});"
+                    "  window.parent.ybSeek=function(sec){if(ybPlayer&&ybPlayer.seekTo){ybPlayer.seekTo(sec,true);ybPlayer.playVideo();}};"
+                    "  window.parent.ybPlayerReady=true;"
+                    "}"
+                    "</script>"
+                )
+                _components.html(_player_html, height=380)
+                st.caption(f"[Open on YouTube](https://www.youtube.com/watch?v={vid})")
             meta0 = st.session_state.video_meta.get(st.session_state.video_ids[0], {}) if st.session_state.video_ids else {}
             if meta0:
                 st.markdown(f"**{meta0.get('title', '')}**")
                 st.caption(f"{meta0.get('uploader','')} ? {(meta0.get('duration') or 0)//60}m {(meta0.get('duration') or 0)%60}s ? {len(st.session_state.video_ids)} video(s) ? {st.session_state.video_lang}")
         # Research tabs
-        t_summary, t_transcript, t_notes = st.tabs(["Summary", "Transcript", "Notes"])
+        t_summary, t_transcript, t_notes, t_dub = st.tabs(["Summary", "Transcript", "Notes", "Dub"])
         main_type = content_types[0] if content_types else "general"
         with t_summary:
             level = st.radio("Summary length", ["TL;DR", "Short", "Detailed"], horizontal=True, key="sum_level")
@@ -665,18 +797,37 @@ if st.session_state.video_docs:
         with t_transcript:
             q = st.text_input("Search transcript", key="tr_search", placeholder="keyword...")
             shown = 0
-            for d in docs:
-                txt = d.page_content
+            snippets = st.session_state.get("video_snippets", [])
+            segs_html = []
+            for sn in snippets:
+                txt = " ".join((sn.get("text") or "").split())
+                if not txt:
+                    continue
                 if q and q.lower() not in txt.lower():
                     continue
-                meta = d.metadata if hasattr(d, "metadata") else {}
-                ts = meta.get("start") if isinstance(meta, dict) else None
-                label = f"[{int(ts)}s]" if ts is not None else ""
-                st.markdown(f"<span class='yb-muted'>{label}</span> {txt}", unsafe_allow_html=True)
+                ts = sn.get("start")
+                if ts is not None:
+                    ts_i = int(ts)
+                    ts_html = ("<a href='#' onclick='if(window.parent.ybSeek)window.parent.ybSeek(" + str(ts_i) + ");return false;' "
+                               "style='color:#A3A3A3;text-decoration:none;margin-right:.5rem;'>[" + str(ts_i) + "s]</a>")
+                else:
+                    ts_html = ""
+                import html as _html
+                segs_html.append(f"<div style='margin:.35rem 0;line-height:1.5;'>{ts_html}{_html.escape(txt)}</div>")
                 shown += 1
-                if shown >= 60:
-                    st.caption("Showing first 60 matching segments.")
+                if shown >= 120:
+                    segs_html.append("<div style='color:#A3A3A3;font-size:.85rem;'>Showing first 120 matching segments.</div>")
                     break
+            if segs_html:
+                import streamlit.components.v1 as _components
+                _components.html(
+                    "<div style='font-family:Inter,system-ui,sans-serif;color:#F5F5F5;font-size:.92rem;max-height:460px;overflow-y:auto;padding:.25rem .5rem;'>"
+                    + "".join(segs_html) +
+                    "</div>",
+                    height=480,
+                )
+            if shown == 0:
+                st.info("No transcript segments match.")
             if shown == 0:
                 st.info("No transcript segments match.")
         with t_notes:
@@ -749,6 +900,51 @@ if st.session_state.video_docs:
                     score = sum(1 for i, q in enumerate(st.session_state.quiz_data)
                                 if st.session_state.get(f"quiz_a_{i}") == q["options"][q["answer"]])
                     c2.metric("Score", f"{score}/{len(st.session_state.quiz_data)}")
+
+    with t_dub:
+        st.markdown('<div class="yb-section-h">Translate / Dub video</div>', unsafe_allow_html=True)
+        dub_lang = st.selectbox("Target language", utils.TARGET_LANGS, index=0, key="dub_lang")
+        c1, c2 = st.columns(2)
+        if c1.button("Translate transcript", type="primary"):
+            with st.spinner(f"Translating transcript to {dub_lang}..."):
+                try:
+                    blocks = utils.translate_transcript(llm, docs, dub_lang, progress_cb=None)
+                    st.session_state.translated_blocks = blocks
+                    st.session_state.translated_lang = dub_lang
+                except Exception as e:
+                    utils.log_error("translate transcript", e)
+                    st.error(f"Translation failed: {e}")
+        if c2.button("Dub video (download MP4)", type="primary"):
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
+            def _cb(f, msg=""):
+                progress_bar.progress(min(1.0, float(f)))
+                if msg:
+                    status_text.caption(msg)
+            try:
+                mp4 = utils.dub_video(st.session_state.video_ids[0], llm, dub_lang, progress_cb=_cb)
+                st.session_state.dubbed_mp4 = mp4
+                st.session_state.dubbed_lang = dub_lang
+                st.success("Dubbing complete.")
+            except Exception as e:
+                utils.log_error("dub video", e)
+                st.error(f"Dubbing failed: {e}")
+        if st.session_state.get("translated_blocks"):
+            st.markdown(f"**Translated transcript ({st.session_state.get('translated_lang','')})**")
+            for b in st.session_state.translated_blocks:
+                ts = b.get("start", 0)
+                link = b.get("link", "")
+                label = f"[{int(ts)}s]({link})" if link else f"[{int(ts)}s]"
+                st.markdown(f"{label} {b.get('text','')}")
+        if st.session_state.get("dubbed_mp4"):
+            st.markdown('<div class="yb-section-h">Dubbed preview</div>', unsafe_allow_html=True)
+            st.video(st.session_state.dubbed_mp4)
+            st.download_button(
+                f"Download dubbed video ({st.session_state.get('dubbed_lang','')})",
+                st.session_state.dubbed_mp4,
+                file_name=f"dubbed_{st.session_state.get('dubbed_lang','video')}.mp4",
+                mime="video/mp4",
+            )
 
     with right:
         st.markdown('<div class="yb-section-h">Ask about this video</div>', unsafe_allow_html=True)
