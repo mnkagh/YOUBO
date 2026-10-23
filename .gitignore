@@ -49,3 +49,7 @@ temp*.pdf
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only (kept on disk, not pushed)
+Dockerfile
+.env.example
