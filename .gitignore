@@ -53,3 +53,4 @@ Thumbs.db
 # Local-only (kept on disk, not pushed)
 Dockerfile
 .env.example
+docker-compose.yml
