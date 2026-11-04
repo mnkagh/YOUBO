@@ -4,7 +4,7 @@ import json
 import secrets
 from pathlib import Path
 
-DATA = Path(__file__).parent / "data"
+DATA = Path(__file__).resolve().parent.parent / "data"
 USERS_FILE = DATA / "users.json"
 
 

@@ -1,5 +1,5 @@
 """Translation of transcripts and generated content."""
-import prompts
+from . import prompts
 
 TARGET_LANGS = ["Hindi", "Spanish", "French", "German", "Portuguese",
                 "Arabic", "Tamil", "Telugu", "Bengali", "Marathi",

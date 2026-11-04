@@ -2,7 +2,7 @@
 import os
 import re
 
-from logutil import log, Timer
+from .logutil import log, Timer
 
 MAX_VIDEOS = 20
 

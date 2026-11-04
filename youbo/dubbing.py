@@ -3,8 +3,8 @@ import os
 import subprocess
 import tempfile
 
-import prompts
-from youtube import fetch_transcript
+from . import prompts
+from .youtube import fetch_transcript
 
 TTS_VOICES = {
     "Hindi": "hi-IN-SwaraNeural", "Spanish": "es-ES-ElviraNeural",

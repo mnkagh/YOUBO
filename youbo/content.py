@@ -1,7 +1,7 @@
 """LLM-generated artefacts: summaries, notes, quizzes, PDF export."""
 import json
 
-import prompts
+from . import prompts
 
 
 def build_summary(llm, transcript_text: str, level: str, content_type: str = "general", max_chars: int = 12000) -> str:

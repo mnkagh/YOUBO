@@ -2,7 +2,7 @@ import logging
 import time
 from pathlib import Path
 
-LOG_DIR = Path(__file__).parent / "logs"
+LOG_DIR = Path(__file__).resolve().parent.parent / "logs"
 
 
 def get_logger(name: str = "ytchat") -> logging.Logger:
