@@ -5,7 +5,7 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from rank_bm25 import BM25Okapi
 
-from .providers import get_embeddings
+from core.providers import get_embeddings
 
 MAX_TRANSCRIPT_CHARS = 200_000
 

@@ -12,8 +12,9 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-from youbo import auth, content, dubbing, prompts, providers, retrieval, translation, youtube
-from youbo.logutil import Timer, log_error, read_recent_logs
+from backend import auth, content, dubbing, retrieval, translation, youtube
+from core import prompts, providers
+from core.logutil import Timer, log_error, read_recent_logs
 
 load_dotenv()
 if os.getenv("HF_TOKEN"):
@@ -24,7 +25,7 @@ st.set_page_config(page_title="YOUBO", page_icon="▶", layout="wide",
 
 
 # Theme stylesheets live in ./static so CSS stays out of the Python source.
-_STATIC = Path(__file__).parent / "youbo" / "static"
+_STATIC = Path(__file__).parent / "core" / "static"
 
 def _css(name: str) -> str:
     return "<style>\n" + (_STATIC / name).read_text(encoding="utf-8").strip() + "\n</style>"

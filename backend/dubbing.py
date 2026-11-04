@@ -3,8 +3,8 @@ import os
 import subprocess
 import tempfile
 
-from . import prompts
-from .youtube import fetch_transcript
+from core import prompts
+from backend.youtube import fetch_transcript
 
 TTS_VOICES = {
     "Hindi": "hi-IN-SwaraNeural", "Spanish": "es-ES-ElviraNeural",
