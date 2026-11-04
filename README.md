@@ -1,63 +1,50 @@
 # YOUBO
 
-Chat with YouTube videos.
+Paste a YouTube link, ask questions about the video. Answers point back to the
+exact moment they came from.
 
-## Features
+## What it does
 
-- **Timestamped answers** — every answer links back to the exact moment in the video (`&t=` seconds)
-- **Hybrid retrieval** — Qdrant vector search (dense) + BM25 keyword search, merged and deduplicated
-- **Chat history** — follow-up questions work via history-aware retrieval
-- **Multi-video support** — chat across several videos at once
-- **Comparison mode** — explicitly compare what different videos say about a topic
-- **Playlist support** — paste a playlist URL, it expands to the first 10 videos
-- **Summary levels** — TL;DR, Short, or Detailed summaries
-- **Quiz generator** — auto-creates multiple-choice quizzes from a video with answers + explanations
-- **Study notes export** — structured markdown notes, downloadable as `.md` or `.pdf`
-- **Key moments timeline** — evenly-spaced timestamped highlights with links
-- **Video metadata** — titles, channels, durations shown in the sidebar
-- **No-captions fallback** — caption-less videos are transcribed automatically
-- **Chat export** — download the full conversation as markdown
-- **Cached index** — the vector/BM25 index is built once per video set, not on every rerun
-- **Input hardening** — length limits, playlist caps, transcript size caps, graceful errors
-- **Server logging** — every failure is logged with timings to `logs/app.log`, viewable in the sidebar Diagnostics panel
+- Chat with one video or a playlist (first 10 videos per playlist)
+- Summaries (TL;DR / short / detailed), study notes, multiple-choice quizzes
+- Transcript translation and video dubbing
+- Clickable timestamps everywhere, so you can check every answer yourself
+- Optional accounts, or use it as a guest
 
-## Tech Stack
+## How it works
 
-- **LLM:** Groq (`openai/gpt-oss-120b`)
-- **Embeddings:** FastEmbed `bge-small-en-v1.5` (ONNX — loads in <1s on CPU, no torch)
-- **Vector store:** Qdrant (in-memory)
-- **Keyword search:** BM25 (`rank-bm25`)
-- **Framework:** LangChain + Streamlit
+Transcripts come from `youtube-transcript-api` and get split into
+~1200-character chunks, each tagged with its video and start time. Questions
+are answered with hybrid retrieval (Qdrant vector search for meaning, BM25 for
+exact names and keywords) through a history-aware chain, so follow-up
+questions still make sense. Videos without captions fall back to audio
+transcription where possible.
 
-## Setup
+## Running it
 
 ```bash
 git clone https://github.com/mnkagh/YOUBO.git
 cd YOUBO
 python -m venv venv
-venv\Scripts\activate   # Windows
+venv\Scripts\activate
 pip install -r requirements.txt
-```
-
-Run:
-
-```bash
 streamlit run app.py
 ```
 
-## Usage
+Either install Ollama or put a free key in `.env`:
 
-1. Paste YouTube URL(s) or a playlist in the sidebar and click **Load videos**
-2. Ask questions in the chat — answers include clickable timestamp links
-3. Use comparison mode for multi-video analysis, or generate/export study notes
-4. Use the Dub tab to translate or dub the video into another language
+```
+LLM_PROVIDER=Groq (free tier: 30 rpm / 1k day)
+GROQ_API_KEY=your key
+```
 
-## How It Works
+Other providers work too (Gemini, OpenRouter, LM Studio, llama.cpp) — set
+`LLM_PROVIDER` to the matching option in `providers.py`.
 
-1. Transcript fetched via `youtube-transcript-api` (with timestamps)
-2. Chunked into ~1200-char segments, each tagged with its video + start time
-3. Embedded and stored in Qdrant; BM25 index built in parallel
-4. Questions are rewritten using chat history, then answered via hybrid retrieval with `[Source](link)` citations
+## Notes
+
+- Live demo: https://youbo.onrender.com/
+- Chat history and app files stay on the server, nothing is shared elsewhere.
 
 ## License
 

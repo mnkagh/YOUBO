@@ -1,0 +1,46 @@
+:root, .stApp {
+  --yb-bg: #fafafa;
+  --yb-text: #111;
+  --yb-muted: #595959;
+  --yb-surface: #ffffff;
+  --yb-surface-sidebar: #f5f5f5;
+  --yb-surface-code: #f5f5f5;
+  --yb-surface-tablist: #f0f0f0;
+  --yb-input-bg: #ffffff;
+  --yb-input-text: #111;
+  --yb-border: #ddd;
+  --yb-accent: #FF4545;
+  --yb-accent-hover: #ff5a5a;
+  --yb-success: #22c55e;
+  --yb-primary-btn-bg: #FF4545;
+  --yb-primary-btn-text: #ffffff;
+  --yb-selected-tab-bg: #222222;
+  --yb-selected-tab-text: #F5F5F5;
+  --yb-cite-bg: #2a1414;
+  --yb-cite-border: #5a2020;
+  --yb-cite-text: #ff8a8a;
+  --yb-download-bg: #2a1414;
+  --yb-download-border: #5a2020;
+  --yb-download-text: #ffb3b3;
+  --yb-focus: #FF4545;
+}
+body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], section.main, .main { background: #fafafa !important; }
+.block-container { background: #fafafa !important; }
+.block-container, .main, p, li, span, label, h1, h2, h3, h4, .stMarkdown { color: #111 !important; }
+.stTextInput input, .stTextArea textarea { background: #fff !important; color: #111 !important; border: 1px solid #ddd !important; }
+.stChatMessage { background: #fff !important; border: 1px solid #ddd !important; }
+[data-testid="stChatInput"] textarea { background: #fff !important; color: #111 !important; }
+.stTabs [data-baseweb="tab-list"] { background: #f0f0f0 !important; }
+.stExpander { background: #fff !important; border-color: #ddd !important; }
+.stButton > button { background: #fff !important; color: #111 !important; border: 1px solid #ddd !important; }
+.stMetric { background: #fff !important; border: 1px solid #ddd !important; }
+code, pre, [data-testid="stCodeBlock"] { background: #f5f5f5 !important; }
+[data-testid="stSidebar"] { background: #f5f5f5 !important; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] textarea { background: #fff !important; color: #111 !important; -webkit-text-fill-color: #111 !important; }
+.yb-card, .yb-processing { background: #fff !important; border-color: #ddd !important; }
+/* shared exceptions retained in light mode */
+.stButton > button[kind="primary"] { background: #FF4545 !important; color: #fff !important; border: none !important; }
+.stButton > button[kind="primary"]:hover { background: #ff5a5a !important; }
+.stTabs [aria-selected="true"] { color: #F5F5F5 !important; background: #222222 !important; }
+.stDownloadButton > button { background: #2a1414 !important; color: #ffb3b3 !important; border: 1px solid #5a2020 !important; }
+.yb-cite { background: #2a1414 !important; border-color: #5a2020 !important; color: #ff8a8a !important; }
