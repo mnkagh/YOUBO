@@ -31,15 +31,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Either install Ollama or put a free key in `.env`:
-
-```
-LLM_PROVIDER=Groq (free tier: 30 rpm / 1k day)
-GROQ_API_KEY=your key
-```
-
-Other providers work too (Gemini, OpenRouter, LM Studio, llama.cpp) — set
-`LLM_PROVIDER` to the matching option in `providers.py`.
+Either install Ollama, or use a hosted provider — the options are listed in
+`core/providers.py`.
 
 ## Notes
 
