@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 
 from core import prompts
-from backend.youtube import fetch_transcript
+from backend.youtube import fetch_transcript, ydl_opts
 
 TTS_VOICES = {
     "Hindi": "hi-IN-SwaraNeural", "Spanish": "es-ES-ElviraNeural",
@@ -77,12 +77,12 @@ def dub_video(video_id: str, llm, target_lang: str, source_lang: str = "auto",
         progress(0.40, "Recording voiceover...")
         asyncio.run(_tts_all(jobs))
         progress(0.65, "Downloading original video...")
-        with yt_dlp.YoutubeDL({
+        with yt_dlp.YoutubeDL(ydl_opts({
             "format": "bv*[height<=720]+ba/b[height<=720]/b",
-            "quiet": True, "merge_output_format": "mp4",
+            "merge_output_format": "mp4",
             "ffmpeg_location": ffmpeg,
             "outtmpl": os.path.join(tmpdir, "src.%(ext)s"),
-        }) as ydl:
+        })) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
             src_path = ydl.prepare_filename(info)
             if not os.path.exists(src_path):
